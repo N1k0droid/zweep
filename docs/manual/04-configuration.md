@@ -124,6 +124,7 @@ API exposes the same keys (`PUT /v1/admin/settings/{key}` with `{"value": …}`:
 | `retention.acks` | 90 days | ≥ 30 days | Acknowledgement requests made from the app. |
 | `heartbeat.threshold` | 15 min | 2 min – 1 day | A device without contact for this long is *unreachable*. |
 | `zbx.poll_interval` | 30 s | 15 s – 10 min | How often the open problems are read from each Zabbix API. |
+| `notifications.repeats` | multi | multi / single | **Notification mode.** *Multi*: when Zabbix notifies the same problem to the same user again (a later escalation step), the phone rings again, unless the user silenced that alarm. *Single*: no further notifications for the same problem. Needs the media type of Zweep 1.0.1 or later (chapter 6.2). |
 | `tracking.shown` | on | on/off | The phones report whether each alarm was actually shown, and why not (Do Not Disturb, channel off…). Visible in Deliveries. |
 | `orphans.autoclose` | on | on/off | Close automatically alerts whose problem no longer exists in Zabbix (see 7.8). Needs the Zabbix API of the source. |
 | `orphans.after` | 1 h | 10 min – 30 days | How long an alert must be missing from Zabbix before it is closed automatically. |

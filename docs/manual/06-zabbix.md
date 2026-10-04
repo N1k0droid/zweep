@@ -52,6 +52,10 @@ grows.
 The script alone (`zweep-mediatype.js`) is also available, for those who prefer to create the media type
 by hand.
 
+💡 **Upgrading from 1.0.0**: import the media type again (*Update existing*), or add by hand the
+parameter `esc_history` with value `{ESC.HISTORY}` and replace the script: it is needed by the
+notification mode *multi*.
+
 In Zabbix: **Alerts → Media types → Import**, choose the file, **Import**. Then open the media type
 **Zweep** and set the parameters:
 
@@ -157,13 +161,19 @@ Notes:
   the app, from the problem list or immediately when the acknowledge was made in the app.
 - **Zweep only**, without escalation: it works the same way (one operation via Zweep). You lose the
   safety net, so use it only where an SMS or a phone call is not needed.
-- **Use Zweep in one step.** If an action sends the same problem to the same user via Zweep more than
-  once (a step range such as `2 – 0`, or Zweep in several steps), Zweep recognizes it as the same alarm
-  — exactly like a retry of the media type, which Zabbix sends with the same data — answers *sent* and
-  does not show it again: Zabbix sees no error and the escalation goes on normally. To repeat an
-  unread alarm on the phone, use the **reminders** of its channel (chapter 8.6): they repeat the
-  notification until it is opened, without new messages from Zabbix. Updates (acknowledgements,
-  comments, severity changes) and the recovery are always delivered.
+- **Zweep in more steps.** An action may send the same problem via Zweep more than once: a step range
+  such as `2 – 0`, or a first step to a small group and a later one to the whole IT department. Users
+  reached for the first time are always notified. For users already notified, the **notification
+  mode** decides (**Settings → General → Notification mode**, chapter 4):
+  - *multi* (default): every new escalation step rings again; in the app the detail of the alarm shows
+    *Zabbix sent another notification for this escalation*. A user who pressed **Silence** on that
+    alarm is not disturbed again (chapter 8.6);
+  - *single*: Zweep answers *sent* and does not show it again.
+
+  Retries of the media type are never shown twice: the media type sends a fingerprint of the
+  escalation (`esc_history` = `{ESC.HISTORY}`, only its hash leaves Zabbix), the same for a retry and
+  different for a new step. A media type imported before Zweep 1.0.1 has no `esc_history` parameter:
+  it works as *single* until you import the new one (6.2).
 
 ⚠ Create a **separate action, not using Zweep**, for the alarms *about* Zweep (its health, its metrics):
 if Zweep is down, its own alarm must arrive by another way (chapter 10.1).

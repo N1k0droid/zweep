@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -105,14 +106,28 @@ fun DetailScreen(vm: AppViewModel, r: Route.Detail, onBack: () -> Unit) {
             if (frontend != null && (frontend.startsWith("https://") || frontend.startsWith("http://"))) {
                 OutlinedButton(onClick = { openInBrowser(ctx, frontend) }) { Text(stringResource(R.string.detail_open_zabbix)) }
             }
-            // No "Silence" here: opening the detail already marks the alarm read, which ends its reminders.
-            // Silence stays in the notification, for who does not want to open the app.
+            // Silence: no new notifications for this alarm (repeats of Zabbix, reminders); updates and the
+            // recovery still arrive, without sound. It can be turned off again.
+            if (r.sid != null && status != "resolved") {
+                val silenced = local.any { it.silenced }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = {
+                        vm.setSilenced(r.serverRef, r.sid, !silenced)
+                        local = local.map { it.copy(silenced = !silenced) }
+                    }) { Text(stringResource(if (silenced) R.string.action_unsilence else R.string.action_silence)) }
+                    if (silenced) Text(stringResource(R.string.detail_silenced), color = Zw.textSecondary, fontSize = 13.sp)
+                }
+            }
 
             SectionTitle(inset = false, text = stringResource(R.string.detail_history))
             val history = detail?.history
+            // Repeats of Zabbix (another escalation step) are known only to the phone: merged by time
+            val repeats = local.filter { it.kind == "repeat" }.map { it.receivedAt }
             if (history != null) {
-                if (history.isEmpty()) Text(stringResource(R.string.detail_no_history), color = Zw.textSecondary, fontSize = 13.sp)
-                history.forEach { HistoryRow(it) }
+                if (history.isEmpty() && repeats.isEmpty()) Text(stringResource(R.string.detail_no_history), color = Zw.textSecondary, fontSize = 13.sp)
+                (history.map { isoMs(it.clock) to it } + repeats.map { it to null }).sortedBy { it.first }.forEach { (at, h) ->
+                    if (h != null) HistoryRow(h) else RepeatRow(at)
+                }
             } else {
                 local.forEach { m ->
                     Text("${timeShort(m.receivedAt)}  ${kindText(m.kind)}", color = Zw.textBody, fontSize = 13.sp)
@@ -160,6 +175,15 @@ private fun HistoryRow(h: HistoryEntry) {
     }
 }
 
+/** A new notification of Zabbix for the same problem (another escalation step) */
+@Composable
+private fun RepeatRow(at: Long) {
+    Column(Modifier.fillMaxWidth().background(Zw.surface).padding(10.dp)) {
+        Text("${timeShort(at)}  Zabbix", color = Zw.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.history_repeat), color = Zw.textBody, fontSize = 13.sp)
+    }
+}
+
 @Composable
 private fun AckBox(onSend: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
@@ -201,6 +225,7 @@ private fun kindText(kind: String) = stringResource(
         "recovery" -> R.string.state_resolved
         "update" -> R.string.state_updated
         "test" -> R.string.state_test
+        "repeat" -> R.string.history_repeat
         else -> R.string.state_open
     },
 )

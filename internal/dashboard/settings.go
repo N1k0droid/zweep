@@ -28,7 +28,7 @@ func (d *Dashboard) settingsRoutes() {
 // settingUnit is how a setting is shown and edited: seconds per unit, or a switch
 type settingUnit struct {
 	Key   string
-	Unit  string // days, minutes, seconds, bool
+	Unit  string // days, minutes, seconds, bool, mode (a switch shown as multi / single)
 	Value int64
 	On    bool
 }
@@ -43,6 +43,7 @@ var settingUnits = []struct{ key, unit string }{
 	{"retention.acks", "days"},
 	{"retention.revoked_devices", "days"},
 	{"retention.audit", "days"},
+	{"notifications.repeats", "mode"},
 	{"tracking.shown", "bool"},
 	{"orphans.autoclose", "bool"},
 	{"orphans.after", "minutes"},
@@ -86,7 +87,7 @@ func (d *Dashboard) settingSave(w http.ResponseWriter, r *http.Request) {
 	case "":
 		d.render(w, r, http.StatusNotFound, "error", map[string]any{"Message": "err.not_found"})
 		return
-	case "bool":
+	case "bool", "mode":
 		value = r.PostFormValue("value") == "1"
 	default:
 		n, err := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("value")), 10, 64)

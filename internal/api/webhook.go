@@ -102,7 +102,7 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		fail(label, errorf(http.StatusUnprocessableEntity, 42201, "invalid_payload", err.Error()))
 		return
 	}
-	res, err := s.st.Ingest(ctx, ev, src)
+	res, err := s.st.Ingest(ctx, ev, src, s.hub.Settings().NotifyRepeats)
 	switch {
 	case errors.Is(err, store.ErrUnknownRecipient):
 		// Not transient, but never 2xx: the alert must show as failed in Zabbix and escalate
@@ -130,6 +130,10 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	metrics.IngestLastSuccess.Set(float64(time.Now().Unix()))
 	warnings := make([]string, 0)
 	details := map[string]any{"key": res.IdemKey, "seq": res.Seq, "message_id": res.MessageID.String(), "channels": res.Channels, "devices": res.Devices}
+	if res.Status == store.IngestRepeat {
+		details["repeat"] = true
+		metrics.WebhookRequests.WithLabelValues(label, "repeat").Inc()
+	}
 	if res.Status == store.IngestCollision {
 		warnings = append(warnings, "collision")
 		metrics.WebhookCollisions.WithLabelValues(label).Inc()

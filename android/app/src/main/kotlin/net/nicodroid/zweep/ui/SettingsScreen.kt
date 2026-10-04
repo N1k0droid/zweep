@@ -155,6 +155,18 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
                             .putExtra(AndroidSettings.EXTRA_CHANNEL_ID, Engine.notifier.channelFor(c.serverRef, c.id)))
                     }, onRestore = if (zweepSound) null else { { confirmRestore = c } })
                 }
+                // Recoveries: their own sound, changeable, with the Zweep sound restorable
+                val resolvedZweep = remember(resumes, s.id) { Engine.notifier.usesZweepSound(s.id, Notifier.RESOLVED) }
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Text(stringResource(R.string.channel_resolved), color = Zw.textPrimary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton({
+                            ctx.startActivity(Intent(AndroidSettings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(AndroidSettings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                .putExtra(AndroidSettings.EXTRA_CHANNEL_ID, Engine.notifier.channelFor(s.id, Notifier.RESOLVED)))
+                        }) { Text(stringResource(R.string.channel_sound)) }
+                        if (!resolvedZweep) TextButton({ vm.restoreResolvedSound(s.id) }) { Text(stringResource(R.string.sound_restore)) }
+                    }
+                }
             }
 
             SectionDivider()

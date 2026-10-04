@@ -38,11 +38,11 @@ class Notifier(private val ctx: Context) {
     }
 
     /**
-     * One Android channel per Zweep channel of the server (6 severities plus the custom ones).
-     * Severity channels play the Zweep sound of their severity (res/raw/zweep_sev_N), which every user
-     * can change in the Android settings of the channel. Android fixes the sound of a channel when it
-     * is created and restores the old settings if a deleted id is created again, so a severity channel
-     * lives in "generations": zw.<server>.sev_N.s<G>. The channels made before the Zweep sounds
+     * One Android channel per Zweep channel of the server (6 severities, the custom ones, the
+     * recoveries). Each plays a Zweep sound (res/raw: zweep_sev_N, zweep_custom, zweep_resolved), which
+     * every user can change in the Android settings of the channel. Android fixes the sound of a channel
+     * when it is created and restores the old settings if a deleted id is created again, so a channel
+     * lives in "generations": zw.<server>.<channel>.s<G>. The channels made before their Zweep sound
      * (generation 1, no suffix) move to .s2 only while they still use the system sound; a sound the user
      * chose (or turned off) is kept. [restoreZweepSound] creates the next generation.
      */
@@ -50,14 +50,10 @@ class Notifier(private val ctx: Context) {
         val group = "zw.$serverRef"
         nm.createNotificationChannelGroup(NotificationChannelGroup(group, label))
         val keep = mutableSetOf<String>()
-        for (c in channels) {
+        // Recoveries ring on their own channel, with the Zweep "resolved" sound
+        val all = channels.filter { it.id != RESOLVED } + ChannelEntity(serverRef, RESOLVED, "resolved", RESOLVED)
+        for (c in all) {
             val sev = severityOf(c.id)
-            if (sev == null) {
-                val id = androidChannel(serverRef, c.id)
-                keep += id
-                createChannel(id, group, c, null)
-                continue
-            }
             val gen = generation(serverRef, c.id)
             val current = generationId(serverRef, c.id, gen)
             val old = nm.getNotificationChannel(current)
@@ -79,6 +75,7 @@ class Notifier(private val ctx: Context) {
 
     private fun createChannel(id: String, group: String, c: ChannelEntity, sev: Int?): String {
         val importance = when {
+            c.id == RESOLVED -> NotificationManager.IMPORTANCE_DEFAULT
             sev == null -> NotificationManager.IMPORTANCE_HIGH
             sev >= Severity.HIGH -> NotificationManager.IMPORTANCE_HIGH
             else -> NotificationManager.IMPORTANCE_DEFAULT // the softest sounds too: they must be heard
@@ -90,8 +87,8 @@ class Notifier(private val ctx: Context) {
             if (sev != null) {
                 enableLights(true)
                 lightColor = severityColor(sev)
-                setSound(severitySound(sev), soundAttributes)
             }
+            setSound(zweepSound(c.id), soundAttributes)
         }
         nm.createNotificationChannel(ch)
         return id
@@ -103,7 +100,7 @@ class Notifier(private val ctx: Context) {
         syncChannels(serverRef, label, (existing.map { ChannelEntity(serverRef, it, "severity", it) } + c).distinctBy { it.id })
     }
 
-    /** Highest generation of a severity channel present on the phone (0: none) */
+    /** Highest generation of a channel present on the phone (0: none) */
     private fun generation(serverRef: Long, channelId: String): Int {
         val base = androidChannel(serverRef, channelId)
         return nm.notificationChannels.mapNotNull {
@@ -120,24 +117,23 @@ class Notifier(private val ctx: Context) {
 
     /** The Android channel that carries a Zweep channel now */
     fun channelFor(serverRef: Long, channelId: String): String {
-        if (severityOf(channelId) == null) return androidChannel(serverRef, channelId)
         val gen = generation(serverRef, channelId)
         return generationId(serverRef, channelId, if (gen == 0) 2 else gen)
     }
 
-    /** Whether a severity channel still plays its Zweep sound (custom channels: always true) */
+    /** Whether a channel still plays its Zweep sound */
     fun usesZweepSound(serverRef: Long, channelId: String): Boolean {
-        val sev = severityOf(channelId) ?: return true
+        val sound = zweepSound(channelId)
         val ch = nm.getNotificationChannel(channelFor(serverRef, channelId)) ?: return true
-        return ch.sound == severitySound(sev)
+        return ch.sound == sound
     }
 
     /**
-     * Gives a severity channel its Zweep sound back: Android cannot change the sound of a channel, so the
+     * Gives a channel its Zweep sound back: Android cannot change the sound of a channel, so the
      * next generation is created (the other settings of the channel go back to their defaults)
      */
     fun restoreZweepSound(serverRef: Long, c: ChannelEntity) {
-        val sev = severityOf(c.id) ?: return
+        val sev = severityOf(c.id)
         val gen = generation(serverRef, c.id)
         if (gen > 0) nm.deleteNotificationChannel(generationId(serverRef, c.id, gen))
         createChannel(generationId(serverRef, c.id, maxOf(gen, 1) + 1), "zw.$serverRef", c, sev)
@@ -146,6 +142,17 @@ class Notifier(private val ctx: Context) {
     /** A sound other than the system default (or no sound): chosen by the user, never overwritten */
     private fun userChoseSound(ch: NotificationChannel): Boolean =
         ch.sound == null || ch.sound != AndroidSettings.System.DEFAULT_NOTIFICATION_URI
+
+    /**
+     * Every Zweep channel has a Zweep sound: its severity, the recoveries, or the one sound of the custom
+     * channels (each can be changed in the Android settings of its channel)
+     */
+    private fun zweepSound(channelId: String): Uri = when {
+        channelId == RESOLVED -> raw(R.raw.zweep_resolved)
+        else -> severityOf(channelId)?.let { severitySound(it) } ?: raw(R.raw.zweep_custom)
+    }
+
+    private fun raw(res: Int): Uri = Uri.parse("android.resource://${ctx.packageName}/$res")
 
     private fun severitySound(sev: Int): Uri {
         val res = when (sev) {
@@ -220,7 +227,7 @@ class Notifier(private val ctx: Context) {
             "recovery" -> ctx.getString(R.string.state_resolved)
             "update" -> ctx.getString(R.string.state_updated)
             "test" -> ctx.getString(R.string.state_test)
-            else -> ctx.getString(R.string.state_open)
+            else -> ctx.getString(R.string.state_open) // problem, and a repeat of Zabbix
         }
         val open = PendingIntent.getActivity(
             ctx, m.notifId, Intent(ctx, MainActivity::class.java).setAction(MainActivity.ACTION_OPEN)
@@ -293,12 +300,16 @@ class Notifier(private val ctx: Context) {
         )
     }
 
-    private fun channelName(c: ChannelEntity): String =
-        severityOf(c.id)?.let { ctx.getString(severityLabel(it)) } ?: c.name
+    private fun channelName(c: ChannelEntity): String = when (c.id) {
+        RESOLVED -> ctx.getString(R.string.channel_resolved)
+        else -> severityOf(c.id)?.let { ctx.getString(severityLabel(it)) } ?: c.name
+    }
 
     companion object {
         const val CH_SERVICE = "zw.service"
         const val CH_SYSTEM = "zw.system"
+        /** Channel of the recoveries of a server (zw.<server>.resolved.s<G>), with the Zweep resolved sound */
+        const val RESOLVED = "resolved"
         const val TAG_ALARM = "alarm"
         const val TAG_SYSTEM = "system"
         const val EXTRA_SEV = "zw.sev"

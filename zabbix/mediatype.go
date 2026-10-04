@@ -33,6 +33,7 @@ type Options struct {
 var params = [][2]string{
 	{"ack_status", "{EVENT.ACK.STATUS}"},
 	{"allow_plaintext", "false"},
+	{"esc_history", "{ESC.HISTORY}"},
 	{"event_id", "{EVENT.ID}"},
 	{"event_name", "{EVENT.NAME}"},
 	{"event_ts", "{EVENT.DATE} {EVENT.TIME}"},

@@ -48,19 +48,26 @@ class DeliveryService : Service() {
         }.also { cm.registerDefaultNetworkCallback(it) }
         Engine.scope.launch {
             Engine.reconcile()
+            refresh(this@DeliveryService) // the connections exist now: never left on "starting"
             Engine.purgeHistory()
         }
         pinger = Engine.scope.launch {
             while (isActive) {
                 delay(KEEPALIVE_MS)
                 Engine.pingAll()
+                // Self-healing: the persistent notification follows the connections even if a state
+                // change happened while the service was being (re)created
+                refresh(this@DeliveryService)
             }
         }
         Reminders.watchdog(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Engine.scope.launch { Engine.reconcile() }
+        Engine.scope.launch {
+            Engine.reconcile()
+            refresh(this@DeliveryService)
+        }
         return START_STICKY
     }
 

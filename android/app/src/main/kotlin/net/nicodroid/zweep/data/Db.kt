@@ -232,6 +232,12 @@ interface MessageDao {
     @Query("UPDATE message SET silenced = 1, nextReminderAt = 0 WHERE serverRef = :server AND sid = :sid")
     suspend fun silence(server: Long, sid: String)
 
+    @Query("UPDATE message SET silenced = 0 WHERE serverRef = :server AND sid = :sid")
+    suspend fun unsilence(server: Long, sid: String)
+
+    @Query("SELECT EXISTS (SELECT 1 FROM message WHERE serverRef = :server AND sid = :sid AND silenced = 1)")
+    suspend fun isSilenced(server: Long, sid: String): Boolean
+
     @Query("UPDATE message SET readAt = :now, nextReminderAt = 0 WHERE serverRef = :server AND sid = :sid AND readAt = 0")
     suspend fun markRead(server: Long, sid: String, now: Long)
 

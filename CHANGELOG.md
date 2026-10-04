@@ -2,6 +2,21 @@
 
 All notable changes to Zweep are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.0.1 — 2026-10-04
+
+- Notification mode (Settings → General): *multi* (default) notifies again when Zabbix calls Zweep
+  again for the same problem and user in a later escalation step; *single* keeps one notification per
+  problem. Retries of the media type are told apart by a fingerprint of `{ESC.HISTORY}`: import the
+  media type again (new parameter `esc_history`).
+- App: **Silence** in the detail and in the notification, also on an alarm already read: no reminders
+  and no repeats for that alarm, updates and recovery without sound; **Unmute** turns it off. The
+  detail history shows the repeats of Zabbix.
+- App: recoveries ring with their own Zweep sound (Settings → Channels → Resolved), and custom
+  channels get a Zweep sound instead of the system one; both changeable and restorable like the
+  severity sounds (a sound chosen by the user is kept).
+- App: the persistent notification never stays on "Zweep is starting" after an update or a restart.
+- Server: two calls for the same problem within 45 s (two actions starting together) are merged.
+
 ## 1.0.0 — 2026-10-04
 
 First public release.

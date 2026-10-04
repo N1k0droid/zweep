@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // Runs a Zabbix webhook script with a minimal emulation of the Zabbix JavaScript environment:
-// synchronous HttpRequest, hmac(), Zabbix.log(). Test tool only.
+// synchronous HttpRequest, hmac(), sha256(), Zabbix.log(). Test tool only.
 // usage: node run.js <script.js> <params.json>   (prints {"ok":bool,"result":...} as JSON)
 'use strict';
 const fs = require('fs');
@@ -41,11 +41,12 @@ HttpRequest.prototype.post = function (url, body) {
 const logs = [];
 const Zabbix = { log: (level, msg) => logs.push(msg) };
 const hmac = (alg, key, data) => crypto.createHmac(alg, key).update(data).digest('hex');
+const sha256 = data => crypto.createHash('sha256').update(data).digest('hex');
 
-const fn = new Function('value', 'HttpRequest', 'Zabbix', 'hmac', script);
+const fn = new Function('value', 'HttpRequest', 'Zabbix', 'hmac', 'sha256', script);
 let out;
 try {
-    out = { ok: true, result: fn(params, HttpRequest, Zabbix, hmac), logs };
+    out = { ok: true, result: fn(params, HttpRequest, Zabbix, hmac, sha256), logs };
 } catch (e) {
     out = { ok: false, result: String(e), logs };
 }

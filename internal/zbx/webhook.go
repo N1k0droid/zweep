@@ -25,6 +25,9 @@ const (
 	KindProblem  Kind = "problem"
 	KindUpdate   Kind = "update"
 	KindRecovery Kind = "recovery"
+	// KindRepeat is a new call of Zabbix for a problem already delivered to the same user (an
+	// escalation step that notifies again), in the notification mode "multi"
+	KindRepeat Kind = "repeat"
 )
 
 var kindRank = map[Kind]int64{KindProblem: 1, KindUpdate: 2, KindRecovery: 3}
@@ -105,6 +108,9 @@ type Payload struct {
 	UpdateMessage FlexString      `json:"update_message"`
 	UpdateUser    FlexString      `json:"update_user"`
 	AckStatus     FlexString      `json:"ack_status"`
+	// Esc is the fingerprint of the escalation so far (hash of {ESC.HISTORY}, computed by the media
+	// type): the same for retries of an alert, different for a later escalation step
+	Esc FlexString `json:"esc"`
 }
 
 // Tag is a Zabbix event tag
@@ -133,6 +139,7 @@ type Event struct {
 	EventTime     time.Time // problem start
 	Timestamp     time.Time // time of this notification (start, update or recovery)
 	Update        *Update
+	Esc           string // escalation fingerprint, "" from media types older than 1.0.1
 	Acknowledged  bool
 }
 
@@ -245,6 +252,7 @@ func Normalize(source string, p Payload, loc *time.Location, now time.Time) (*Ev
 		IdemKey:       idem,
 		ImmutableHash: immutable,
 		SID:           fmt.Sprintf("%s:%d", source, eventID),
+		Esc:           escKey(p.Esc.String()),
 		Title:         title,
 		Host:          host,
 		EventName:     name,
@@ -256,6 +264,20 @@ func Normalize(source string, p Payload, loc *time.Location, now time.Time) (*Ev
 		Update:        upd,
 		Acknowledged:  strings.EqualFold(p.AckStatus.String(), "yes"),
 	}, nil
+}
+
+// escKey accepts the escalation fingerprint of the media type (a hex hash); anything else is ignored
+func escKey(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) < 8 || len(s) > 64 {
+		return ""
+	}
+	for _, c := range s {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return ""
+		}
+	}
+	return strings.ToLower(s)
 }
 
 func splitList(s string) []string {

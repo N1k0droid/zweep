@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/n1k0droid/zweep/internal/routing"
@@ -23,7 +24,12 @@ const (
 	IngestAccepted  IngestStatus = "accepted"
 	IngestDuplicate IngestStatus = "duplicate"
 	IngestCollision IngestStatus = "collision" // same key, different immutable data: delivered as a distinct alarm
+	IngestRepeat    IngestStatus = "repeat"    // the same problem called again by Zabbix (mode multi): delivered as a repeat
 )
+
+// repeatGap: a new call of Zabbix for the same problem and user closer than this to the previous one
+// is not a new escalation step (a step lasts at least 60 s): it is merged, not notified again
+const repeatGap = 45 * time.Second
 
 // IngestResult describes a committed ingest
 type IngestResult struct {
@@ -43,8 +49,10 @@ type IngestResult struct {
 }
 
 // Ingest commits event, message and per-device deliveries atomically (transactional outbox).
-// The caller must answer 2xx only after a nil error.
-func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source) (*IngestResult, error) {
+// The caller must answer 2xx only after a nil error. repeats is the notification mode "multi": a
+// problem already delivered to the same user and called again by Zabbix (another escalation step)
+// becomes a repeat message instead of a silent duplicate.
+func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source, repeats bool) (*IngestResult, error) {
 	res := &IngestResult{Status: IngestAccepted}
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		*res = IngestResult{Status: IngestAccepted}
@@ -82,12 +90,40 @@ func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source) (*Ing
 		if err := rows.Err(); err != nil {
 			return err
 		}
+		baseKey, kind, version := ev.IdemKey, ev.Kind, ev.Version
+		// A retry of an alert carries the escalation fingerprint already seen; a later escalation step
+		// a new one. Without a fingerprint (older media type) it stays a duplicate.
+		// Calls closer than repeatGap to the previous one are the same notification too: an escalation
+		// step lasts at least 60 s in Zabbix, so they come from another action starting at the same time.
+		retry := true
+		if duplicate && repeats && ev.Kind == zbx.KindProblem && ev.Esc != "" {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM zw_event WHERE base_key IN ($1, $1 || ':repeat')
+				AND (payload->>'esc' = $2 OR received_at > now() - make_interval(secs => $3)))`,
+				ev.IdemKey, ev.Esc, repeatGap.Seconds()).Scan(&retry); err != nil {
+				return err
+			}
+		}
+		if duplicate && !retry {
+			// Another call for the same problem: numbered under its own base key, so that the first
+			// event still decides duplicates and collisions. Ordered after the problem, like an update.
+			baseKey, kind = ev.IdemKey+":repeat", zbx.KindRepeat
+			version = 2*zbx.VersionFactor + time.Now().Unix()
+			var n int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM zw_event WHERE base_key = $1`, baseKey).Scan(&n); err != nil {
+				return err
+			}
+			res.Status = IngestRepeat
+			res.IdemKey = fmt.Sprintf("%s:%d", baseKey, n+1)
+			duplicate = false
+		}
 		if duplicate {
 			res.Status = IngestDuplicate
 			return nil
 		}
-		res.IdemKey = ev.IdemKey
-		if existing > 0 {
+		if res.Status != IngestRepeat {
+			res.IdemKey = ev.IdemKey
+		}
+		if existing > 0 && res.Status != IngestRepeat {
 			res.Status = IngestCollision
 			res.IdemKey = fmt.Sprintf("%s#%d", ev.IdemKey, existing+1)
 		}
@@ -113,7 +149,7 @@ func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source) (*Ing
 			INSERT INTO zw_event (base_key, idem_key, source_id, zbx_eventid, immutable_hash, kind, recipient, nseverity, version, payload, outcome, outside_filter, outside_reason)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NULLIF($13, ''))
 			RETURNING id`,
-			ev.IdemKey, res.IdemKey, ev.Source, ev.EventID, ev.ImmutableHash[:], string(ev.Kind), ev.SendTo, ev.Severity, ev.Version,
+			baseKey, res.IdemKey, ev.Source, ev.EventID, ev.ImmutableHash[:], string(kind), ev.SendTo, ev.Severity, version,
 			payload, string(res.Status), res.OutsideFilter, res.OutsideReason).Scan(&eventRow); err != nil {
 			return err
 		}
@@ -143,7 +179,7 @@ func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source) (*Ing
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO zw_message (id, user_id, seq, sid, version, source_id, zbx_eventid, event_id, kind, severity, channels, title, body)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-			res.MessageID, res.UserID, res.Seq, sid, ev.Version, ev.Source, ev.EventID, eventRow, string(ev.Kind), ev.Severity,
+			res.MessageID, res.UserID, res.Seq, sid, version, ev.Source, ev.EventID, eventRow, string(kind), ev.Severity,
 			res.Channels, ev.Title, messageBody(ev, source)); err != nil {
 			return err
 		}
@@ -219,6 +255,7 @@ func eventPayload(ev *zbx.Event, source *Source) []byte {
 		"update":       ev.Update,
 		"acknowledged": ev.Acknowledged,
 		"source_name":  source.Name(),
+		"esc":          ev.Esc,
 	})
 }
 

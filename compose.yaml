@@ -33,7 +33,7 @@ services:
     networks: [zweep]
 
   zweep:
-    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.0}
+    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.1}
     restart: unless-stopped
     depends_on:
       db:

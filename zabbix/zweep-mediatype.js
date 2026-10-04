@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // Parameters: server_url (one Zweep server; for more servers clone the media type), zweep_source,
-// secret, allow_plaintext (lab only), plus the event macros.
+// secret, allow_plaintext (lab only), esc_history ({ESC.HISTORY}: only its hash is sent), plus the
+// event macros.
 // Any failure throws: Zabbix marks the alert failed, retries it, and the escalation continues.
 // The script never reports success unless the server answered 2xx (i.e. committed the event).
 try {
@@ -29,6 +30,12 @@ try {
     delete p.server_url;
     delete p.secret;
     delete p.allow_plaintext;
+    // Fingerprint of the escalation so far: a retry of the same alert carries the same one, a later
+    // escalation step another (Zweep notifies again in the mode "multi"). Only the hash is sent.
+    if (typeof p.esc_history === 'string' && p.esc_history !== '' && p.esc_history.indexOf('{ESC.') !== 0) {
+        p.esc = (typeof sha256 === 'function' ? sha256(p.esc_history) : hmac('sha256', 'zweep-esc', p.esc_history)).substring(0, 32);
+    }
+    delete p.esc_history;
 
     var body = JSON.stringify(p);
     var ts = String(Math.floor(Date.now() / 1000));

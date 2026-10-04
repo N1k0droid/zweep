@@ -65,7 +65,8 @@ func TestZabbix_MediaTypeImport(t *testing.T) {
 				for _, p := range m.Parameters {
 					values[p.Name] = p.Value
 				}
-				require.Len(t, values, 21)
+				require.Len(t, values, 22)
+				require.Equal(t, "{ESC.HISTORY}", values["esc_history"])
 				require.Equal(t, "{EVENT.NSEVERITY}", values["nseverity"])
 				if o.Source == "" {
 					require.Equal(t, zabbix.PlaceholderURL, values["server_url"])

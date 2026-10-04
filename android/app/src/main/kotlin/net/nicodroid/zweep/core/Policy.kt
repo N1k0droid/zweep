@@ -103,6 +103,7 @@ object NotShownReason {
     const val OS_LIMIT = "os_limit" // Android refused it: too many notifications of the app
     const val NOT_DISPLAYED = "not_displayed" // posted, but Android did not show it
     const val FILTER = "filter"
+    const val SILENCED = "silenced" // the user silenced this alarm: updates and recovery arrive without sound
 }
 
 /**

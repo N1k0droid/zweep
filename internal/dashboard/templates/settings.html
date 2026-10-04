@@ -13,7 +13,9 @@
       {{if $.IsAdmin}}
       <form autocomplete="off" method="post" action="/admin/settings/{{.Key}}" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        {{if eq .Unit "bool"}}
+        {{if eq .Unit "mode"}}
+          <select name="value"><option value="1"{{if .On}} selected{{end}}>{{$.T "settings.multi"}}</option><option value="0"{{if not .On}} selected{{end}}>{{$.T "settings.single"}}</option></select>
+        {{else if eq .Unit "bool"}}
           <select name="value"><option value="1"{{if .On}} selected{{end}}>{{$.T "settings.on"}}</option><option value="0"{{if not .On}} selected{{end}}>{{$.T "settings.off"}}</option></select>
         {{else}}
           <input name="value" type="number" min="0" value="{{.Value}}" class="num"> <span class="muted">{{$.T (print "unit." .Unit)}}</span>
@@ -22,7 +24,7 @@
       </form>
       {{if eq .Key (index $.Data "ErrKey")}}<span class="field-err" role="alert">{{index $.Data "ErrMsg"}}</span>{{end}}
       {{else}}
-        {{if eq .Unit "bool"}}{{if .On}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}{{else}}{{.Value}} {{$.T (print "unit." .Unit)}}{{end}}
+        {{if eq .Unit "mode"}}{{if .On}}{{$.T "settings.multi"}}{{else}}{{$.T "settings.single"}}{{end}}{{else if eq .Unit "bool"}}{{if .On}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}{{else}}{{.Value}} {{$.T (print "unit." .Unit)}}{{end}}
       {{end}}
     </td>
   </tr>

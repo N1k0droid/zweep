@@ -26,6 +26,10 @@
     <string name="notification_public">Zweep: %1$s alarm</string>
     <string name="notification_reminder">reminder %1$d</string>
     <string name="action_silence">Silence</string>
+    <string name="action_unsilence">Unmute</string>
+    <string name="detail_silenced">Silenced: no new notifications for this alarm</string>
+    <string name="history_repeat">Zabbix sent another notification for this escalation</string>
+    <string name="channel_resolved">Resolved</string>
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_change">Change</string>

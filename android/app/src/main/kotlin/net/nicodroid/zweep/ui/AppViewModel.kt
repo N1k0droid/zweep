@@ -30,6 +30,7 @@ import net.nicodroid.zweep.data.SourceEntity
 import net.nicodroid.zweep.net.Detail
 import net.nicodroid.zweep.service.DeliveryService
 import net.nicodroid.zweep.service.Engine
+import net.nicodroid.zweep.service.Notifier
 import net.nicodroid.zweep.service.LinkState
 import net.nicodroid.zweep.service.Reminders
 import net.nicodroid.zweep.service.Revocations
@@ -181,6 +182,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun markAllRead() = viewModelScope.launch { db.messages().markAllRead(System.currentTimeMillis()) }
 
+
+    /** Silence: no repeats or reminders for this alarm; updates and recovery arrive without sound */
+    fun setSilenced(serverRef: Long, sid: String, on: Boolean) = viewModelScope.launch {
+        if (on) db.messages().silence(serverRef, sid) else db.messages().unsilence(serverRef, sid)
+    }
+
+    fun restoreResolvedSound(serverRef: Long) = viewModelScope.launch(Dispatchers.IO) {
+        Engine.notifier.restoreZweepSound(serverRef, net.nicodroid.zweep.data.ChannelEntity(serverRef, Notifier.RESOLVED, "resolved", Notifier.RESOLVED))
+    }
 
     fun acksFor(serverRef: Long, source: String, eventid: String): Flow<List<AckEntity>> = db.acks().observeFor(serverRef, source, eventid)
 

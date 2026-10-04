@@ -25,6 +25,10 @@
     <string name="notification_public">Zweep: allarme %1$s</string>
     <string name="notification_reminder">promemoria %1$d</string>
     <string name="action_silence">Silenzia</string>
+    <string name="action_unsilence">Riattiva</string>
+    <string name="detail_silenced">Silenziato: nessuna nuova notifica per questo allarme</string>
+    <string name="history_repeat">Zabbix ha inviato un\'altra notifica per questa escalation</string>
+    <string name="channel_resolved">Resolved</string>
     <string name="action_back">Indietro</string>
     <string name="action_cancel">Annulla</string>
     <string name="action_change">Modifica</string>

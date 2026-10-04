@@ -236,6 +236,52 @@ func TestCore_T03_Duplicates(t *testing.T) {
 	}
 }
 
+// Notification mode: a later escalation step (new escalation fingerprint) notifies again as a repeat
+// of the same alarm; retries (same fingerprint) and media types without it stay duplicates; the mode
+// "single" never repeats
+func TestCore_RepeatedEscalationSteps(t *testing.T) {
+	e := newCoreEnv(t, nil)
+	e.user("mario")
+	secret := e.source("zbx-01", nil)
+	dev := e.device("mario", "a72")
+	connect(t, dev)
+	base := zwclient.Problem("mario", 900, 5, "db-01", "MySQL down") // Zabbix resends the same event data
+	send := func(esc string) string {
+		p := map[string]any{}
+		for k, v := range base {
+			p[k] = v
+		}
+		if esc != "" {
+			p["esc"] = esc
+		}
+		r := zwclient.Webhook(nil, e.url, "zbx-01", secret, p)
+		require.Equal(t, 200, r.Code, string(r.Raw))
+		return r.Body["status"].(string)
+	}
+	step1, step2, step3 := "a1b2c3d4e5f60718a1b2c3d4e5f60718", "b1b2c3d4e5f60718a1b2c3d4e5f60718", "c1b2c3d4e5f60718a1b2c3d4e5f60718"
+	require.Equal(t, "accepted", send(step1))
+	require.Equal(t, "duplicate", send(step1), "retry of the first alert")
+	require.Equal(t, "duplicate", send(""), "older media type: no fingerprint")
+	require.Equal(t, "duplicate", send(step2), "a second action at the same moment: merged (step2 not seen yet)")
+	_, err := e.s.store.Pool.Exec(context.Background(), `UPDATE zw_event SET received_at = received_at - interval '2 minutes'`)
+	require.Nil(t, err)
+	require.Equal(t, "accepted", send(step2), "second escalation step, a minute later")
+	require.Equal(t, "duplicate", send(step2), "retry of the second step")
+
+	require.True(t, zwclient.WaitFor(5*time.Second, func() bool { return len(dev.State().Messages) == 2 }))
+	st := dev.State()
+	require.Equal(t, "problem", st.Messages[0].Kind)
+	require.Equal(t, "repeat", st.Messages[1].Kind)
+	require.Equal(t, st.Messages[0].SID, st.Messages[1].SID, "the same alarm on the phone")
+	require.Greater(t, st.Messages[1].Ver, st.Messages[0].Ver)
+
+	_, err = e.s.store.Pool.Exec(context.Background(), `UPDATE zw_event SET received_at = received_at - interval '2 minutes'`)
+	require.Nil(t, err)
+	require.Equal(t, 200, zwclient.Do(nil, "PUT", e.url+"/v1/admin/settings/notifications.repeats", map[string]any{"value": false}, e.admin).Code)
+	require.True(t, zwclient.WaitFor(5*time.Second, func() bool { return !e.s.hub.Settings().NotifyRepeats }))
+	require.Equal(t, "duplicate", send(step3), "mode single")
+}
+
 // A different event with a known key (replicated Zabbix not reconfigured) is delivered as a distinct alarm
 func TestCore_CollisionDeliveredAnyway(t *testing.T) {
 	e := newCoreEnv(t, nil)

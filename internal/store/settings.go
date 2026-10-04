@@ -23,6 +23,7 @@ type Settings struct {
 	RevokedDeviceRetain time.Duration
 	UnreachableAfter    time.Duration // heartbeat threshold
 	TrackShown          bool          // store shown/not_shown receipts (GDPR switch)
+	NotifyRepeats       bool          // notification mode "multi": a new call of Zabbix for a problem already delivered notifies again
 	PollInterval        time.Duration // Zabbix problem.get interval per source
 	ResolvedRetention   time.Duration // resolved problems kept in the projection (History of the app: at least 7 days)
 	AckRetention        time.Duration // ack requests
@@ -41,6 +42,7 @@ func DefaultSettings() Settings {
 		RevokedDeviceRetain: 30 * 24 * time.Hour,
 		UnreachableAfter:    15 * time.Minute,
 		TrackShown:          true,
+		NotifyRepeats:       true,
 		PollInterval:        30 * time.Second,
 		ResolvedRetention:   7 * 24 * time.Hour,
 		AckRetention:        90 * 24 * time.Hour,
@@ -106,6 +108,12 @@ var settingSpecs = map[string]settingSpec{
 		get: func(s *Settings) any { return s.AppPublicDownload },
 		set: func(s *Settings, raw json.RawMessage) error {
 			return json.Unmarshal(raw, &s.AppPublicDownload)
+		},
+	},
+	"notifications.repeats": {
+		get: func(s *Settings) any { return s.NotifyRepeats },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.NotifyRepeats)
 		},
 	},
 	"tracking.shown": {

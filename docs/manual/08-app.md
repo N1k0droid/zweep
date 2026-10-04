@@ -134,11 +134,14 @@ you. For each channel:
 | Notify | on / off | on |
 | Reminders | 0, 1, 3, 5, ∞ | Disaster ∞, High 3, Average 1, others 0 |
 | Interval | every 1, 2, 5, 10, 15 min | 2 min |
-| Sound | any sound of the phone, via the Android settings of the channel (**Sound**) | the Zweep sound of the severity: from a 1-second triple burst (Disaster) down to a short low blip (Not classified) |
+| Sound | any sound of the phone, via the Android settings of the channel (**Sound**) | the Zweep sound of the severity: from a 1-second triple burst (Disaster) down to a short low blip (Not classified); custom channels: one Zweep sound for all, two notes ringing together like a tapped glass |
+
+**Resolved**: below the channels of each server, the sound of the recoveries — three soft rising
+notes — with **Sound** and **Restore Zweep sound** like the other channels.
 
 The Zweep sounds are original works made for Zweep, under the same license.
 Phones updated from a version without them get the new sounds only on the channels that still used the
-system sound: a sound chosen by the user is kept.
+system sound (custom channels too, since 1.0.1): a sound chosen by the user is kept.
 
 In the Android settings of a channel, *Default* means the system notification sound, not the Zweep
 sound (Android does not list the sounds of an app). To get the Zweep sound back, use **Restore Zweep
@@ -147,9 +150,14 @@ the sound of an existing channel, so the channel is created again and its other 
 (vibration, Do Not Disturb exception) go back to the defaults.
 
 Reminders repeat the notification of an **unread, unresolved** alarm until you open it, mark it read, or
-the problem is resolved. **Silence**, in the notification itself, stops the reminders of that alarm
-without opening the app (for example from the lock screen); opening the alarm does the same. Later
-updates of the same alarm (acknowledged by someone else, resolved) are still notified.
+the problem is resolved; opening the alarm stops them.
+
+**Silence** (in the notification, or in the detail of the alarm, also when already read) means *do not
+disturb me again for this alarm*: no reminders, and no ringing when Zabbix notifies it again in a later
+escalation step. Updates (acknowledged by a colleague, comments) and the recovery still arrive, without
+sound: the card is updated and the alarm closes by itself. The detail shows *Silenced*; **Unmute**
+turns notifications for that alarm on again. Silence affects only your phone: other users are notified
+normally, and the escalation in Zabbix goes on. **Mark all read** does not silence.
 
 A channel shown as *Disabled by the administrator* cannot be turned on from the phone.
 

@@ -313,24 +313,35 @@ object Engine {
                 receipt(m, ReceiptState.NOT_SHOWN, decision.reason)
                 continue
             }
+            if (m.kind == "recovery") db.messages().stopReminders(m.serverRef, m.sid)
+            // Silenced by the user: repeats and reminders never ring; updates and the recovery only
+            // refresh a notification still on screen, without sound
+            if (m.kind != "test" && db.messages().isSilenced(m.serverRef, m.sid)) {
+                db.messages().silence(m.serverRef, m.sid) // this message too
+                if (notifier.isActive(m.notifId)) notifier.post(m, s.label, chId, false, 0, ch?.takeIf { it.kind == "custom" })
+                db.messages().setPresented(m.serverRef, m.seq, MessageEntity.STATE_SILENT, NotShownReason.SILENCED, m.notifId, 0)
+                receipt(m, ReceiptState.NOT_SHOWN, NotShownReason.SILENCED)
+                continue
+            }
             val wait = pacer.delayFor(now)
             if (wait > 0) delay(wait)
-            val alert = m.kind == "problem" || m.kind == "test"
-            if (m.kind == "recovery") db.messages().stopReminders(m.serverRef, m.sid)
+            // A repeat is a new call of Zabbix (another escalation step); a recovery rings with its own sound
+            val alert = m.kind == "problem" || m.kind == "test" || m.kind == "repeat" || m.kind == "recovery"
+            val postChannel = if (m.kind == "recovery") Notifier.RESOLVED else chId
             // Every post needs room, a recovery or an update too when its alarm is no longer on screen
-            val roomSev = if (alert) m.sev else -1
+            val roomSev = if (alert && m.kind != "recovery") m.sev else -1
             if (!notifier.makeRoom(roomSev, m.notifId)) {
                 db.messages().setPresented(m.serverRef, m.seq, MessageEntity.STATE_SILENT, NotShownReason.CAP, m.notifId, 0)
                 receipt(m, ReceiptState.NOT_SHOWN, NotShownReason.CAP)
                 continue
             }
-            var shown = notifier.post(m, s.label, chId, alert, 0, ch?.takeIf { it.kind == "custom" })
+            var shown = notifier.post(m, s.label, postChannel, alert, 0, ch?.takeIf { it.kind == "custom" })
             if (!shown && notifier.makeRoom(roomSev, m.notifId)) {
                 // Refused or late: once more, after making room again
-                shown = notifier.post(m, s.label, chId, alert, 0, ch?.takeIf { it.kind == "custom" })
+                shown = notifier.post(m, s.label, postChannel, alert, 0, ch?.takeIf { it.kind == "custom" })
             }
             pacer.posted(System.currentTimeMillis())
-            val next = if (shown && m.kind == "problem" && prefs.reminders != 0) now + prefs.reminderMinutes * 60_000L else 0
+            val next = if (shown && (m.kind == "problem" || m.kind == "repeat") && prefs.reminders != 0) now + prefs.reminderMinutes * 60_000L else 0
             db.messages().setPresented(m.serverRef, m.seq, MessageEntity.STATE_NOTIFIED, null, m.notifId, next)
             when {
                 shown -> receipt(m, ReceiptState.SHOWN, null)
