@@ -1,0 +1,104 @@
+{{define "title"}}{{(index .Data "S").Name}}{{end}}
+{{define "content"}}
+{{$s := index .Data "S"}}
+<a class="back" href="/admin/sources">← {{.T "nav.sources"}}</a>
+<div class="head">
+  <h1>{{$s.Name}} <span class="muted">{{$s.ID}}</span></h1>
+  {{if not $s.Enabled}}<span class="pill muted">{{.T "state.disabled"}}</span>{{end}}
+</div>
+
+{{with index .Data "Secret"}}
+<section class="card highlight">
+  <h2>{{$.T "sources.mediatype"}}</h2>
+  <p>{{$.T "sources.mediatype_hint"}}</p>
+  <table class="kv">
+    <tr><th>server_url</th><td>{{range $i, $u := index $.Data "WebhookURLs"}}{{if $i}}<br>{{end}}<code translate="no" class="secret">{{$u}}</code>{{else}}<span class="muted">{{$.T "sources.server_url_hint"}}</span>{{end}}</td></tr>
+    <tr><th>zweep_source</th><td><code translate="no" class="secret">{{$s.ID}}</code></td></tr>
+    <tr><th>secret</th><td><code translate="no" class="secret">{{.}}</code></td></tr>
+  </table>
+  <p class="muted small">{{$.T "sources.secret_once"}}</p>
+  <p><a class="button" href="/admin/downloads/media_zweep.yaml?source={{$s.ID}}&amp;url=0" download>{{$.T "dl.for_source"}}</a></p>
+</section>
+{{end}}
+
+{{with index .Data "Check"}}
+<section class="card highlight">
+  <h2>{{$.T "sources.check"}}</h2>
+  <table class="kv">
+    <tr><th>{{$.T "col.zabbix"}}</th><td>{{index . "version"}}</td></tr>
+    <tr><th>{{$.T "sources.service_user"}}</th><td>{{index . "service_user"}}</td></tr>
+    <tr><th>{{$.T "sources.methods"}}</th><td>{{range $m, $ok := index . "methods"}}<span class="pill {{if $ok}}ok{{else}}muted{{end}}">{{$m}}</span> {{end}}</td></tr>
+  </table>
+  {{range index . "warnings"}}<div class="banner warn small">{{.}}</div>{{end}}
+</section>
+{{end}}
+
+<div class="cols">
+<div class="stack">
+<section class="card">
+  <h2>{{.T "sources.webhook"}}</h2>
+  {{if .IsAdmin}}
+  <form method="post" action="/admin/sources/{{$s.ID}}" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.source_name"}}<input name="display_name" {{.Inv "display_name"}} value="{{$s.DisplayName}}" maxlength="16">{{.Err "display_name"}}</label>
+    <label>{{.T "field.frontend_url"}}<input name="frontend_url" {{.Inv "frontend_url"}} type="url" spellcheck="false" autocapitalize="off" value="{{$s.FrontendURL}}" placeholder="https://zabbix.example.com">{{.Err "frontend_url"}}</label>
+    <label>{{.T "field.timezone"}}<input name="timezone" {{.Inv "timezone"}} spellcheck="false" autocapitalize="off" value="{{$s.Timezone}}">{{.Err "timezone"}}</label>
+    <label>{{.T "field.allowed_cidrs"}}<textarea name="allowed_cidrs" {{.Inv "allowed_cidrs"}} spellcheck="false" rows="3">{{index .Data "CIDRs"}}</textarea>{{.Err "allowed_cidrs"}}<span class="hint">{{.T "sources.cidrs_hint"}}</span></label>
+    <label class="check"><input type="checkbox" name="enabled" value="1"{{if $s.Enabled}} checked{{end}}> {{.T "sources.enabled"}}</label>
+    <div class="actions"><button class="primary">{{.T "action.save"}}</button></div>
+  </form>
+  <hr>
+  <form autocomplete="off" method="post" action="/admin/sources/{{$s.ID}}/secret" data-confirm="{{.T "sources.secret_confirm"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button>{{.T "sources.secret_new"}}</button>
+  </form>
+  {{else}}
+  <table class="kv">
+    <tr><th>{{.T "field.frontend_url"}}</th><td>{{$s.FrontendURL}}</td></tr>
+    <tr><th>{{.T "field.timezone"}}</th><td>{{$s.Timezone}}</td></tr>
+    <tr><th>{{.T "field.allowed_cidrs"}}</th><td>{{index .Data "CIDRs"}}</td></tr>
+  </table>
+  {{end}}
+</section>
+
+{{if .IsAdmin}}
+<section class="card">
+  <form autocomplete="off" method="post" action="/admin/sources/{{$s.ID}}/delete" data-confirm="{{.T "sources.delete_confirm" $s.ID}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="danger">{{.T "sources.delete"}}</button>
+    <span class="muted small">{{.T "sources.delete_hint"}}</span>
+  </form>
+</section>
+{{end}}
+</div>
+
+<section class="card">
+  <h2>{{.T "col.api"}}</h2>
+  <p class="muted small">{{.T "sources.api_hint"}}</p>
+  {{with index .Data "State"}}
+    <p>{{if .Stale}}<span class="pill err">{{$.T "state.stale"}}</span> <span class="small">{{.LastError}}</span>{{else}}<span class="pill ok">{{$.T "state.ok"}}</span> <span class="muted small">{{.ZbxVersion}} · {{$.T "col.data_as_of"}} {{ts .DataAsOf}}</span>{{end}}</p>
+  {{end}}
+  {{with index .Data "TokenDays"}}<p class="small{{if lt . 30}} warn-text{{end}}">{{$.T "sources.token_expires" .}}</p>{{end}}
+  {{if .IsAdmin}}
+  <form method="post" action="/admin/sources/{{$s.ID}}/api" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.mode"}}
+      <select name="mode" {{.Inv "mode"}}>
+        <option value="disabled"{{if eq $s.APIMode "disabled"}} selected{{end}}>{{.T "sources.mode_disabled"}}</option>
+        <option value="read"{{if eq $s.APIMode "read"}} selected{{end}}>{{.T "sources.mode_read"}}</option>
+        <option value="read_ack"{{if eq $s.APIMode "read_ack"}} selected{{end}}>{{.T "sources.mode_read_ack"}}</option>
+      </select>{{.Err "mode"}}<span class="hint">{{.T "sources.mode_hint"}}</span></label>
+    <label>{{.T "field.api_url"}}<input name="url" {{.Inv "url"}} type="url" spellcheck="false" autocapitalize="off" value="{{$s.APIURL}}" placeholder="{{if $s.FrontendURL}}{{$s.FrontendURL}}/api_jsonrpc.php{{end}}">{{.Err "url"}}</label>
+    <label>{{.T "field.api_token"}}<input name="token" {{.Inv "token"}} spellcheck="false" autocapitalize="off" type="password" autocomplete="off" placeholder="{{if $s.APITokenEnc}}{{.T "sources.token_keep"}}{{end}}">{{.Err "token"}}
+      <span class="hint">{{.T "sources.token_hint"}}</span></label>
+    <label>{{.T "field.token_expires"}}<input name="token_expires" {{.Inv "token_expires"}} type="date" value="{{with $s.APITokenExp}}{{.Format "2006-01-02"}}{{end}}">{{.Err "token_expires"}}</label>
+    <label>{{.T "field.ca_pem"}}<textarea name="ca_pem" {{.Inv "ca_pem"}} spellcheck="false" rows="3" placeholder="-----BEGIN CERTIFICATE-----">{{$s.APICAPEM}}</textarea>{{.Err "ca_pem"}}<span class="hint">{{.T "sources.ca_hint"}}</span></label>
+    <div class="actions"><button class="primary">{{.T "sources.api_save"}}</button></div>
+  </form>
+  {{else}}
+  <p>{{.T (print "mode." $s.APIMode)}}{{if $s.APIURL}} · <span class="muted">{{$s.APIURL}}</span>{{end}}</p>
+  {{end}}
+</section>
+
+</div>
+{{end}}

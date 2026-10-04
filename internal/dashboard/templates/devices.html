@@ -1,0 +1,27 @@
+{{define "title"}}{{.T "nav.devices"}}{{end}}
+{{define "content"}}
+<div class="head">
+  <h1>{{.T "nav.devices"}}</h1>
+  {{if index .Data "ShowRevoked"}}<a href="/admin/devices">{{.T "device.hide_revoked"}}</a>{{else if index .Data "Revoked"}}<a href="/admin/devices?revoked=1">{{.T "device.show_revoked" (index .Data "Revoked")}}</a>{{end}}
+</div>
+{{with index .Data "Devices"}}
+<table>
+  <thead><tr><th>{{$.T "col.device"}}</th><th>{{$.T "field.username"}}</th><th>{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><b>{{.Name}}</b><br><span class="muted small">{{.Vendor}} {{.Model}} · {{.OSVersion}}</span></td>
+    <td><a href="/admin/users/{{.Username}}">{{.Username}}</a></td>
+    <td>{{if .RevokedAt}}<span class="pill muted">{{$.T "device.revoked"}}</span>{{else}}<span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span>{{end}}</td>
+    <td>{{since .LastSeenAt}}</td>
+    <td class="num ver">{{.AppVersion}}{{if and .AppBuild $.Data.LatestBuild (lt .AppBuild $.Data.LatestBuild)}} <span class="pill warn" title="{{$.T "apk.outdated_hint"}}">{{$.T "apk.outdated"}}</span>{{end}}</td>
+    <td class="num">{{.Pending}}{{if .Unconfirmed}} <span class="pill err">{{.Unconfirmed}} {{$.T "status.unconfirmed"}}</span>{{end}}</td>
+    {{if $.IsAdmin}}<td>{{if not .RevokedAt}}<form autocomplete="off" method="post" action="/admin/devices/{{.ID}}/revoke" data-confirm="{{$.T "device.revoke_confirm"}}">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/admin/devices">
+      <button class="danger small">{{$.T "device.revoke"}}</button></form>{{end}}</td>{{end}}
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "device.none"}}</p>{{end}}
+{{end}}

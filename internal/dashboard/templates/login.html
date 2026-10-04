@@ -1,0 +1,11 @@
+{{define "title"}}{{.T "login.title"}}{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{.T "login.title"}}</h1>
+  <form method="post" action="/admin/login" autocomplete="on">
+    <label>{{.T "field.username"}}<input name="username" spellcheck="false" autocapitalize="off" value="{{index .Data "Username"}}" autocomplete="username" required autofocus></label>
+    <label>{{.T "field.password"}}<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary">{{.T "login.submit"}}</button>
+  </form>
+</section>
+{{end}}

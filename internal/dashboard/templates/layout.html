@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#1e293b">
+<title>{{block "title" .}}Zweep{{end}} · Zweep</title>
+<link rel="icon" type="image/svg+xml" href="/admin/static/logo.svg">
+<link rel="stylesheet" href="/admin/static/style.css">
+<script src="/admin/static/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">{{.T "a11y.skip"}}</a>
+<header class="top">
+  <a class="brand" href="/admin/status"><img src="/admin/static/logo.svg" alt="" width="34" height="34"><span translate="no">Zweep</span></a>
+  {{if .User}}
+  <nav>
+    <a href="/admin/status"{{if eq .Path "/admin/status"}} class="on"{{end}}>{{.T "nav.status"}}</a>
+    <a href="/admin/problems"{{if or (hasPrefix .Path "/admin/problems") (eq .Path "/admin/alerts") (eq .Path "/admin/outside")}} class="on"{{end}}>Problems</a>
+    <a href="/admin/users"{{if or (hasPrefix .Path "/admin/users") (hasPrefix .Path "/admin/groups")}} class="on"{{end}}>{{.T "nav.users"}}</a>
+    <a href="/admin/devices"{{if eq .Path "/admin/devices"}} class="on"{{end}}>{{.T "nav.devices"}}</a>
+    <a href="/admin/sources"{{if hasPrefix .Path "/admin/sources"}} class="on"{{end}}>{{.T "nav.sources"}}</a>
+    <a href="/admin/channels"{{if hasPrefix .Path "/admin/channels"}} class="on"{{end}}>{{.T "nav.channels"}}</a>
+    <a href="/admin/deliveries"{{if eq .Path "/admin/deliveries"}} class="on"{{end}}>{{.T "nav.deliveries"}}</a>
+    <a href="/admin/audit"{{if eq .Path "/admin/audit"}} class="on"{{end}}>{{.T "nav.audit"}}</a>
+    <a href="/admin/test"{{if eq .Path "/admin/test"}} class="on"{{end}}>Test</a>
+    <a href="/admin/downloads"{{if eq .Path "/admin/downloads"}} class="on"{{end}}>Download</a>
+    {{if .IsAdmin}}<a href="/admin/logs"{{if eq .Path "/admin/logs"}} class="on"{{end}}>Logging</a>{{end}}
+  </nav>
+  {{end}}
+  <div class="right">
+    <details class="menu">
+      <summary class="hbtn" aria-label="{{.T "nav.language"}}">{{if eq .Lang "it"}}IT{{else}}EN{{end}}</summary>
+      <div class="menu-pop narrow">
+        <a href="/admin/lang/it?back={{.Path}}"{{if eq .Lang "it"}} aria-current="true" class="on"{{end}} lang="it">Italiano</a>
+        <a href="/admin/lang/en?back={{.Path}}"{{if eq .Lang "en"}} aria-current="true" class="on"{{end}} lang="en">English</a>
+      </div>
+    </details>
+    {{if .User}}
+    <a class="hbtn icon{{if or (eq .Path "/admin/settings") (eq .Path "/admin/https")}} on{{end}}" href="/admin/settings" aria-label="{{.T "nav.settings"}}" title="{{.T "nav.settings"}}"{{if or (eq .Path "/admin/settings") (eq .Path "/admin/https")}} aria-current="page"{{end}}>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </a>
+    <details class="menu">
+      <summary aria-label="{{.T "nav.account_menu"}}: {{.User.Username}}" class="hbtn{{if or (eq .Path "/admin/account") (eq .Path "/admin/about")}} on{{end}}" title="{{.T (print "role." .User.Role)}}">{{.User.Username}}</summary>
+      <div class="menu-pop">
+        <div class="menu-head">{{.User.Username}}<span>{{.T (print "role." .User.Role)}}</span></div>
+        <a href="/admin/account">{{.T "nav.profile"}}</a>
+        <a href="/admin/about">{{.T "nav.about"}}</a>
+        <form autocomplete="off" method="post" action="/admin/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>{{.T "nav.logout"}}</button></form>
+      </div>
+    </details>
+    {{end}}
+  </div>
+</header>
+<main id="main" tabindex="-1" class="{{if .User}}wide{{else}}narrow{{end}}">
+  {{if .Insecure}}<div class="banner warn" role="status">{{.T "banner.insecure"}}</div>{{end}}
+  {{if .Flash}}<div class="banner ok" role="status" aria-live="polite">{{.T .Flash}}</div>{{end}}
+  {{if .Error}}<div class="banner err" role="alert">{{.T .Error}}</div>{{end}}
+  {{if .ErrorText}}<div class="banner err" role="alert">{{.T "err.api"}} {{.ErrorText}}</div>{{end}}
+  {{template "content" .}}
+</main>
+<footer>Zweep {{.Version}} · <a href="https://github.com/N1k0droid/zweep" rel="noreferrer">{{.T "footer.source"}}</a> (AGPL-3.0-only) · {{.T "footer.by"}} <a href="https://github.com/N1k0droid" rel="noreferrer">N1k0droid</a><br>{{.T "footer.trademark"}}</footer>
+</body>
+</html>
+
+{{define "userpicker"}}
+<div class="picker" data-name="members">
+  <div class="picked" aria-live="polite">{{range .Data.UserChoices}}{{if .Checked}}<span class="gchip" data-value="{{.Name}}"><span class="gchip-name">{{.Name}}</span><input type="hidden" name="members" value="{{.Name}}"><button type="button" class="gchip-x" aria-label="{{$.T "picker.remove"}}: {{.Name}}">×</button></span>{{end}}{{end}}</div>
+  <input type="text" class="picker-input" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="{{.T "picker.search_users"}}"
+    placeholder="{{.T "picker.search_users"}}" spellcheck="false" autocomplete="off" autocapitalize="off">
+  <ul class="picker-list" role="listbox" hidden>
+    {{range .Data.UserChoices}}<li role="option" data-value="{{.Name}}"><span class="gname">{{.Name}}</span>{{if .Source}}<span class="gsrc">{{.Source}}</span>{{end}}</li>{{end}}
+    <li class="picker-empty" hidden>{{if .Data.UserChoices}}{{.T "picker.no_match"}}{{else}}{{.T "groups.no_operators"}}{{end}}</li>
+  </ul>
+</div>
+{{end}}
+
+{{define "grouppicker"}}
+<div class="picker" data-name="hostgroups">
+  {{with .Data.InheritedGroups}}<div class="inherited-chips">{{range .}}<span class="gchip inherited" title="{{$.T "inh.from" .From}}"><span class="gchip-name">{{.Name}}</span><span class="gchip-from">{{.From}}</span></span>{{end}}</div>{{end}}
+  <div class="picked" aria-live="polite">{{range .Data.GroupChoices}}{{if .Checked}}<span class="gchip" data-value="{{.Name}}"><span class="gchip-name">{{.Name}}</span><input type="hidden" name="hostgroups" value="{{.Name}}"><button type="button" class="gchip-x" aria-label="{{$.T "picker.remove"}}: {{.Name}}">×</button></span>{{end}}{{end}}</div>
+  <input type="text" class="picker-input" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="{{.T "picker.search"}}"
+    placeholder="{{.T "picker.search"}}" spellcheck="false" autocomplete="off" autocapitalize="off">
+  <ul class="picker-list" role="listbox" hidden>
+    {{range .Data.GroupChoices}}<li role="option" data-value="{{.Name}}" class="depth{{depth .Name}}{{if .From}}{{if not .Checked}} locked{{end}}{{end}}"><span class="gname">{{.Name}}</span>{{if .From}}<span class="gsrc inh">{{$.T "inh.from" .From}}</span>{{else if .Source}}<span class="gsrc">{{.Source}}</span>{{end}}</li>{{end}}
+    <li class="picker-empty" hidden>{{if .Data.GroupChoices}}{{.T "picker.no_match"}}{{else}}{{.T "perimeter.no_groups"}}{{end}}</li>
+  </ul>
+</div>
+{{end}}

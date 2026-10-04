@@ -1,0 +1,53 @@
+{{define "title"}}{{.T "nav.deliveries"}}{{end}}
+{{define "content"}}
+{{$f := index .Data "F"}}{{$c := index .Data "Counts"}}{{$sl := index .Data "StateLinks"}}
+<h1>{{.T "nav.deliveries"}}</h1>
+<div class="chips">
+  <a class="chip{{if eq $f.State ""}} on{{end}}" href="{{index $sl ""}}">{{.T "deliveries.all"}}</a>
+  {{range (list "queued" "sent" "delivered" "shown" "not_shown" "unconfirmed")}}
+  <a class="chip {{deliveryClass .}}{{if eq $f.State .}} on{{end}}" href="{{index $sl .}}">{{$.T (print "dstate." .)}} <b>{{index $c .}}</b></a>
+  {{end}}
+</div>
+<form autocomplete="off" method="get" action="/admin/deliveries" class="filters">
+  {{if $f.State}}<input type="hidden" name="state" value="{{$f.State}}">{{end}}
+  <label>{{.T "deliveries.period"}}
+    <select name="hours">{{range (list 1 6 24 168 720 2160)}}<option value="{{.}}"{{if eq . $f.Hours}} selected{{end}}>{{$.T (print "period." .)}}</option>{{end}}</select></label>
+  <label>{{.T "deliveries.from"}}<input type="date" name="from" value="{{$f.From}}"></label>
+  <label>{{.T "deliveries.to"}}<input type="date" name="to" value="{{$f.To}}"></label>
+  <label>{{.T "col.user"}}
+    <select name="user"><option value="">{{.T "filter.any"}}</option>{{range index .Data "Operators"}}<option{{if eq . $f.User}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "col.source"}}
+    <select name="source"><option value="">{{.T "filter.any"}}</option>{{range index .Data "Sources"}}<option value="{{.ID}}"{{if eq .ID $f.Source}} selected{{end}}>{{.Name}}</option>{{end}}<option value="zweep-test"{{if eq "zweep-test" $f.Source}} selected{{end}}>Zweep (test)</option></select></label>
+  <label>{{.T "col.kind"}}
+    <select name="kind"><option value="">{{.T "filter.any"}}</option>{{range (list "problem" "update" "recovery" "test")}}<option value="{{.}}"{{if eq . $f.Kind}} selected{{end}}>{{$.T (print "kind." .)}}</option>{{end}}</select></label>
+  <label>{{.T "perimeter.min_severity"}}
+    <select name="sev">{{range $i, $n := (list "Not classified" "Information" "Warning" "Average" "High" "Disaster")}}<option value="{{$i}}"{{if eq $i $f.MinSeverity}} selected{{end}}>{{$n}}</option>{{end}}</select></label>
+  <label>{{.T "deliveries.event"}}<input name="event" spellcheck="false" autocapitalize="off" value="{{$f.Evt}}" inputmode="numeric"></label>
+  <label>{{.T "deliveries.text"}}<input name="q" value="{{$f.Text}}" placeholder="host, problem…"></label>
+  <div class="actions"><button class="primary">{{.T "action.filter"}}</button><a class="button" href="/admin/deliveries">{{.T "action.reset"}}</a></div>
+</form>
+<p class="muted small">{{.T "deliveries.hint"}} {{.T "deliveries.found" (index .Data "Total")}}</p>
+{{with index .Data "Rows"}}
+<table>
+  <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.message"}}</th><th>{{$.T "col.state"}}</th><th class="num">{{$.T "col.latency"}}</th><th class="num">{{$.T "col.attempts"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td class="nowrap">{{ts .CreatedAt}}</td>
+    <td>{{.Username}}<br><span class="muted small">{{.Device}}</span></td>
+    <td>{{with .Channel}}<span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{else}}<span translate="no" class="sev sev{{sevIndex .Severity}}">{{sevName .Severity}}</span>{{end}} {{.Title}}
+      <br><span class="muted small">{{$.T (print "kind." .Kind)}} · {{.Source}}{{if .EventID}} · <a href="/admin/deliveries?hours=2160&amp;event={{.EventID}}">#{{.EventID}}</a>{{end}} · seq {{.Seq}}</span></td>
+    <td><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span>{{with .NotShownReason}}<br><span class="muted small">{{$.T (print "reason." .)}}</span>{{end}}</td>
+    <td class="num">{{.Latency}}</td>
+    <td class="num">{{.Attempts}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+<div class="pager">
+  {{with index $.Data "Prev"}}<a class="button" href="{{.}}">← {{$.T "action.prev"}}</a>{{end}}
+  <span class="muted small">{{$.T "pager" $f.Page (index $.Data "Pages")}}</span>
+  {{with index $.Data "Next"}}<a class="button" href="{{.}}">{{$.T "action.next"}} →</a>{{end}}
+</div>
+{{else}}<p class="muted">{{.T "deliveries.none"}}</p>{{end}}
+{{end}}

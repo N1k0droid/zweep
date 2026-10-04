@@ -1,0 +1,39 @@
+{{define "title"}}Problems{{end}}
+{{define "content"}}
+<h1>Problems</h1>
+<nav class="subtabs"><a href="/admin/problems" class="on" aria-current="page">{{.T "alerts.tab_problems"}}</a><a href="/admin/alerts">{{.T "alerts.tab_open"}}</a><a href="/admin/outside">{{.T "outside.title"}}</a></nav>
+<form autocomplete="off" method="get" action="/admin/problems" class="filters">
+  <div class="filter-group"><span>Severity</span>
+    <div class="sev-toggles">{{range index .Data "Sev"}}<label class="check"><input type="checkbox" name="sev" value="{{.N}}"{{if .Checked}} checked{{end}}><span translate="no" class="sev sev{{.N}}">{{.Name}}</span><span class="muted small">{{.Count}}</span></label>{{end}}</div>
+  </div>
+  <label>{{.T "col.state"}}
+    <select name="state">{{$s := index .Data "State"}}
+      <option value="">All</option>
+      <option value="unack"{{if eq $s "unack"}} selected{{end}}>Unacknowledged</option>
+      <option value="ack"{{if eq $s "ack"}} selected{{end}}>Acknowledged</option>
+    </select></label>
+  <label>{{.T "col.source"}}
+    <select name="source"><option value="">{{.T "filter.any"}}</option>{{$src := index .Data "Source"}}{{range index .Data "Sources"}}<option value="{{.ID}}"{{if eq .ID $src}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "problems.search"}}<input name="q" value="{{index .Data "Q"}}" placeholder="host, problem, host group…"></label>
+  <div class="actions"><button class="primary">{{.T "action.filter"}}</button><a class="button" href="/admin/problems">{{.T "action.reset"}}</a></div>
+</form>
+<p class="muted small">{{.T "problems.hint"}} {{.T "problems.count" (len (index .Data "Rows")) (index .Data "Total")}}</p>
+{{with index .Data "Rows"}}
+<table class="clickable">
+  <thead><tr><th>Severity</th><th>Problem</th><th>Host</th><th>{{$.T "col.source"}}</th><th>{{$.T "problems.since"}}</th><th>{{$.T "problems.duration"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><span translate="no" class="sev sev{{.Severity}}">{{index (list "Not classified" "Information" "Warning" "Average" "High" "Disaster") .Severity}}</span></td>
+    <td><a href="/admin/problems/{{.SourceID}}/{{.EventID}}"><b>{{.Name}}</b></a>{{if .Groups}}<br><span class="small muted">{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}</span>{{end}}</td>
+    <td>{{.Hosts}}</td>
+    <td>{{.Source}}</td>
+    <td class="nowrap">{{.Since}}</td>
+    <td class="nowrap">{{.Duration}}</td>
+    <td>{{if .Acknowledged}}<span class="pill muted">Acknowledged</span>{{else}}<span class="pill err">Unacknowledged</span>{{end}}{{if .Suppressed}} <span class="pill muted">Suppressed</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "problems.none"}}</p>{{end}}
+{{end}}

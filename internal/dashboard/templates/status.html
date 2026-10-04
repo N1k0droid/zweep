@@ -1,0 +1,76 @@
+{{define "title"}}{{.T "nav.status"}}{{end}}
+{{define "content"}}
+{{$s := index .Data "Stats"}}
+<h1>{{.T "nav.status"}}</h1>
+{{with index .Data "Warnings"}}
+<section class="card warnings">
+  <h2>{{$.T "warn.title"}}</h2>
+  <ul>
+  {{range .}}<li><b>{{$.T .Key}}</b> {{if .Link}}<a href="{{.Link}}">{{.Arg}}</a>{{else}}{{.Arg}}{{end}}{{if .Count}} · {{$.T "warn.count" .Count}}{{end}} <span class="muted small">{{.Last}}</span></li>{{end}}
+  </ul>
+  <p class="muted small">{{$.T "warn.hint"}}</p>
+</section>
+{{end}}
+<div class="tiles">
+  <div class="tile"><b>{{$s.Users}}</b><span>{{.T "status.operators"}}</span></div>
+  <div class="tile"><b>{{$s.UsersOnline}}</b><span>{{.T "status.online_users"}}</span></div>
+  <div class="tile"><b>{{index .Data "Online"}}</b><span>{{.T "status.devices_online"}}</span></div>
+  <div class="tile{{if gt (index .Data "Unreachable") 0}} warn{{end}}"><b>{{index .Data "Unreachable"}}</b><span>{{.T "status.devices_unreachable"}}</span></div>
+  <div class="tile{{if gt $s.PendingReachable 0}} warn{{end}}"><b>{{$s.PendingReachable}}</b><span>{{.T "status.pending_reachable"}}</span></div>
+  <div class="tile"><b>{{$s.PendingUnreachable}}</b><span>{{.T "status.pending_unreachable"}}</span></div>
+  <div class="tile{{if gt $s.Unconfirmed 0}} err{{end}}"><b>{{$s.Unconfirmed}}</b><span>{{.T "status.unconfirmed"}}</span></div>
+  <div class="tile"><b>{{$s.MessagesStored}}</b><span>{{.T "status.messages"}}</span></div>
+</div>
+<h2>{{.T "status.sources"}}</h2>
+{{with index .Data "Sources"}}
+<table>
+  <thead><tr><th>{{$.T "col.source"}}</th><th>{{$.T "col.api"}}</th><th>{{$.T "col.zabbix"}}</th><th>{{$.T "col.data_as_of"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><b>{{.Name}}</b> <span class="muted">{{.ID}}</span></td>
+    <td>{{$.T (print "mode." .Mode)}}</td>
+    <td>{{if .Version}}{{.Version}}{{else}}—{{end}}</td>
+    <td>{{if .DataAsOf}}{{.DataAsOf}}{{else}}—{{end}}</td>
+    <td>
+      {{if not .Enabled}}<span class="pill muted">{{$.T "state.disabled"}}</span>
+      {{else if eq .Mode "disabled"}}<span class="pill muted">{{$.T "state.notify_only"}}</span>
+      {{else if .NeverPolled}}<span class="pill warn">{{$.T "state.waiting"}}</span>
+      {{else if .Stale}}<span class="pill err" title="{{.LastError}}">{{$.T "state.stale"}}</span>
+      {{else}}<span class="pill ok">{{$.T "state.ok"}}</span>{{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "status.no_sources"}}</p>{{end}}
+<div class="cols" id="backup">
+<section class="card">
+  {{$b := index .Data "Backup"}}
+  <div class="head"><h2>Backup</h2>
+    {{if and .IsAdmin $b.Enabled}}<div class="actions">
+      <form autocomplete="off" method="post" action="/admin/backup/run"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="small">{{.T "backup.run"}}</button></form>
+      {{if $b.HasLast}}<a class="button small" href="/admin/backup/latest">{{.T "backup.download"}}</a>{{end}}
+    </div>{{end}}</div>
+  {{if $b.Enabled}}
+  <table class="kv">
+    <tr><th>{{.T "backup.last_ok"}}</th><td>{{if $b.LastOK}}{{$b.LastOK}}{{if $b.Last.File}} <span class="muted small">{{$b.Last.File}}</span>{{end}}{{else}}—{{end}}</td></tr>
+    {{if $b.Failed}}<tr><th>{{.T "backup.last_error"}}</th><td class="err">{{$b.Last.Error}} <span class="muted small">{{$b.LastAt}}</span></td></tr>{{end}}
+    <tr><th>{{.T "backup.next"}}</th><td>{{$b.Next}}</td></tr>
+    <tr><th>{{.T "backup.where"}}</th><td><code>{{$b.Dir}}</code> · {{.T "backup.keep" $b.Keep}}</td></tr>
+  </table>
+  <p class="muted small">{{.T "backup.key_hint"}}</p>
+  {{else}}<p class="muted small">{{.T "backup.disabled"}}</p>{{end}}
+</section>
+<section class="card">
+  <div class="head"><h2>HTTPS</h2><a class="button small" href="/admin/https">{{.T "backup.manage"}}</a></div>
+  {{with index .Data "TLS"}}
+  <table class="kv">
+    <tr><th>{{$.T "https.mode"}}</th><td>{{$.T (print "https.mode_" .Settings.Mode)}}</td></tr>
+    {{with .Info}}<tr><th>{{$.T "https.valid_until"}}</th><td>{{.NotAfter.Local.Format "2006-01-02"}} · {{.Subject}}</td></tr>{{end}}
+  </table>
+  {{end}}
+</section>
+</div>
+<p class="muted small">{{.T "status.server_id"}} {{index .Data "ServerID"}} · {{.T "status.oldest_pending"}} {{index .Data "OldestPending"}}</p>
+{{end}}

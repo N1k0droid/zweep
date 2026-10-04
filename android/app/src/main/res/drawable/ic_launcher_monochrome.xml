@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Zweep launcher monochrome (alpha only). Generated from the Zweep logo -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="772.36"
+    android:viewportHeight="772.36">
+    <group android:translateX="86.18" android:translateY="86.18">
+        <path android:pathData="M140.00,300.00 a160,160 0 1,0 320.00,0 a160,160 0 1,0 -320.00,0 Z" android:strokeColor="#7DFFFFFF" android:strokeWidth="2.5" android:fillColor="#00000000"/>
+        <path android:pathData="M68.0,300.0 H188.5 M411.5,300.0 H532.0 M300.0,68.0 V188.5 M300.0,411.5 V532.0" android:strokeColor="#6BFFFFFF" android:strokeWidth="2.5"/>
+        <path android:pathData="M429.0,293.0 V307.0 M293.0,429.0 H307.0 M171.0,293.0 V307.0 M293.0,171.0 H307.0 M451.0,293.0 V307.0 M293.0,451.0 H307.0 M149.0,293.0 V307.0 M293.0,149.0 H307.0 M473.0,293.0 V307.0 M293.0,473.0 H307.0 M127.0,293.0 V307.0 M293.0,127.0 H307.0 M495.0,293.0 V307.0 M293.0,495.0 H307.0 M105.0,293.0 V307.0 M293.0,105.0 H307.0 M517.0,293.0 V307.0 M293.0,517.0 H307.0 M83.0,293.0 V307.0 M293.0,83.0 H307.0" android:strokeColor="#A1FFFFFF" android:strokeWidth="2.5"/>
+        <path android:pathData="M160.00,300.00 a140,140 0 1,0 280.00,0 a140,140 0 1,0 -280.00,0 Z M196.50,300.00 a103.5,103.5 0 1,0 207.00,0 a103.5,103.5 0 1,0 -207.00,0 Z" android:fillColor="#56000000" android:fillType="evenOdd"/>
+        <path android:pathData="M132.00,300.00 a168,168 0 1,0 336.00,0 a168,168 0 1,0 -336.00,0 Z M160.00,300.00 a140,140 0 1,0 280.00,0 a140,140 0 1,0 -280.00,0 Z" android:fillColor="#3F000000" android:fillType="evenOdd"/>
+        <path android:pathData="M102.00,300.00 a198,198 0 1,0 396.00,0 a198,198 0 1,0 -396.00,0 Z M132.00,300.00 a168,168 0 1,0 336.00,0 a168,168 0 1,0 -336.00,0 Z" android:fillColor="#2B000000" android:fillType="evenOdd"/>
+        <path android:pathData="M73.00,300.00 a227,227 0 1,0 454.00,0 a227,227 0 1,0 -454.00,0 Z M102.00,300.00 a198,198 0 1,0 396.00,0 a198,198 0 1,0 -396.00,0 Z" android:fillColor="#16000000" android:fillType="evenOdd"/>
+        <path android:pathData="M406.90,143.97 a15,15 0 1,0 30.00,0 a15,15 0 1,0 -30.00,0 Z" android:fillColor="#FF000000"/>
+        <path android:pathData="M125.69,206.00 a11.5,11.5 0 1,0 23.00,0 a11.5,11.5 0 1,0 -23.00,0 Z" android:fillColor="#E3000000"/>
+        <path android:pathData="M164.40,422.26 a9,9 0 1,0 18.00,0 a9,9 0 1,0 -18.00,0 Z" android:fillColor="#C6000000"/>
+        <path android:pathData="M445.79,374.52 a7,7 0 1,0 14.00,0 a7,7 0 1,0 -14.00,0 Z" android:fillColor="#B2000000"/>
+        <path android:pathData="M271.90,135.62 a5,5 0 1,0 10.00,0 a5,5 0 1,0 -10.00,0 Z" android:fillColor="#A1000000"/>
+        <path android:pathData="M348.98,512.49 a4,4 0 1,0 8.00,0 a4,4 0 1,0 -8.00,0 Z" android:fillColor="#94000000"/>
+        <path android:pathData="M188.50,300.00 a111.5,111.5 0 1,0 223.00,0 a111.5,111.5 0 1,0 -223.00,0 Z M260.00,252.00 L340.00,252.00 L340.00,269.00 L284.62,331.00 L340.00,331.00 L340.00,348.00 L260.00,348.00 L260.00,331.00 L315.38,269.00 L260.00,269.00 Z" android:fillColor="#FF000000" android:fillType="evenOdd"/>
+    </group>
+</vector>

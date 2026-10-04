@@ -1,0 +1,26 @@
+{{define "title"}}{{.T "nav.sources"}}{{end}}
+{{define "content"}}
+<div class="head">
+  <h1>{{.T "nav.sources"}}</h1>
+  {{if .IsAdmin}}<a class="button primary" href="/admin/sources/new">{{.T "sources.new"}}</a>{{end}}
+</div>
+<p class="muted small">{{.T "sources.hint"}}</p>
+{{$states := index .Data "States"}}
+{{with index .Data "Sources"}}
+<table>
+  <thead><tr><th>{{$.T "col.source"}}</th><th>Frontend</th><th>{{$.T "col.api"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><a href="/admin/sources/{{.ID}}"><b>{{.Name}}</b></a> <span class="muted">{{.ID}}</span></td>
+    <td>{{if .FrontendURL}}{{.FrontendURL}}{{else}}—{{end}}</td>
+    <td>{{$.T (print "mode." .APIMode)}}</td>
+    <td>{{if not .Enabled}}<span class="pill muted">{{$.T "state.disabled"}}</span>
+      {{else if eq .APIMode "disabled"}}<span class="pill muted">{{$.T "state.notify_only"}}</span>
+      {{else}}{{with index $states .ID}}{{if .Stale}}<span class="pill err" title="{{.LastError}}">{{$.T "state.stale"}}</span>{{else}}<span class="pill ok">{{$.T "state.ok"}}</span>{{end}}{{else}}<span class="pill warn">{{$.T "state.waiting"}}</span>{{end}}{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "status.no_sources"}}</p>{{end}}
+{{end}}

@@ -1,0 +1,52 @@
+{{define "title"}}{{.T "nav.account"}}{{end}}
+{{define "content"}}
+<h1>{{.T "nav.account"}}</h1>
+<div class="cols">
+<section class="card">
+  <h2>{{.T "account.password"}}</h2>
+  <form method="post" action="/admin/account/password" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="username" value="{{.User.Username}}" autocomplete="username">
+    <label>{{.T "field.current_password"}}<input name="current" {{.Inv "current"}} type="password" autocomplete="current-password" required>{{.Err "current"}}</label>
+    <label>{{.T "field.new_password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password" required>{{.Err "password"}}</label>
+    <label>{{.T "field.confirm"}}<input name="confirm" {{.Inv "confirm"}} type="password" autocomplete="new-password" required>{{.Err "confirm"}}</label>
+    <p class="muted small">{{.T "password.policy"}}</p>
+    <button class="primary">{{.T "account.change_password"}}</button>
+  </form>
+</section>
+<section class="card">
+  <h2>{{.T "account.totp"}}</h2>
+  {{if eq .User.Role "admin"}}<p class="muted small">{{.T "account.two_admins"}}</p>{{end}}
+  {{if .User.HasTOTP}}
+    <p><span class="pill ok">{{.T "account.totp_on"}}</span></p>
+    {{if eq .User.Role "admin"}}<p class="muted small">{{.T "account.totp_api"}}</p>{{end}}
+    <form autocomplete="off" method="post" action="/admin/account/totp/disable" data-confirm="{{.T "account.totp_disable_confirm"}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>{{.T "field.current_password"}}<input name="current" type="password" autocomplete="current-password" required></label>
+      <button class="danger">{{.T "account.totp_disable"}}</button>
+    </form>
+  {{else if index .Data "TOTPSecret"}}
+    <p class="muted">{{.T "account.totp_scan"}}</p>
+    <img class="qr" src="{{index .Data "TOTPQR"}}" alt="QR" width="198" height="198">
+    <p class="small">{{.T "account.totp_manual"}} <code translate="no" class="secret">{{index .Data "TOTPSecret"}}</code></p>
+    <form method="post" action="/admin/account/totp/confirm" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="secret" value="{{index .Data "TOTPSecret"}}">
+      <label>{{.T "field.code"}}<input name="code" {{.Inv "code"}} spellcheck="false" autocapitalize="off" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required autofocus>{{.Err "code"}}</label>
+      <button class="primary">{{.T "account.totp_confirm"}}</button>
+    </form>
+  {{else}}
+    <p><span class="pill muted">{{.T "account.totp_off"}}</span></p>
+    <p class="muted">{{.T "account.totp_hint"}}</p>
+    {{if index .Data "TOTPBlocked"}}
+    <div class="banner warn" role="status">{{.T "account.totp_needs_admin"}}</div>
+    {{else}}
+    <form autocomplete="off" method="post" action="/admin/account/totp/start">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="primary">{{.T "account.totp_enable"}}</button>
+    </form>
+    {{end}}
+  {{end}}
+</section>
+</div>
+{{end}}

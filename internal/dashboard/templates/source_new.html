@@ -1,0 +1,20 @@
+{{define "title"}}{{.T "sources.new"}}{{end}}
+{{define "content"}}
+<a class="back" href="/admin/sources">← {{.T "nav.sources"}}</a>
+<h1>{{.T "sources.new"}}</h1>
+<section class="card form-card">
+  <form method="post" action="/admin/sources" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.source_id"}}<input name="id" {{.Inv "id"}} spellcheck="false" autocapitalize="off" value="{{index .Data "ID"}}" required autofocus>{{.Err "id"}}
+      <span class="hint">{{.T "sources.id_hint"}}</span></label>
+    <label>{{.T "field.source_name"}}<input name="display_name" {{.Inv "display_name"}} value="{{index .Data "DisplayName"}}" maxlength="16">{{.Err "display_name"}}
+      <span class="hint">{{.T "sources.name_hint"}}</span></label>
+    <label>{{.T "field.frontend_url"}}<input name="frontend_url" {{.Inv "frontend_url"}} type="url" spellcheck="false" autocapitalize="off" value="{{index .Data "FrontendURL"}}" placeholder="https://zabbix.example.com">{{.Err "frontend_url"}}
+      <span class="hint">{{.T "sources.frontend_hint"}}</span></label>
+    <label>{{.T "field.timezone"}}<input name="timezone" {{.Inv "timezone"}} spellcheck="false" autocapitalize="off" value="{{index .Data "Timezone"}}">{{.Err "timezone"}}<span class="hint">{{.T "sources.timezone_hint"}}</span></label>
+    <label>{{.T "field.allowed_cidrs"}}<textarea name="allowed_cidrs" {{.Inv "allowed_cidrs"}} spellcheck="false" rows="3">{{index .Data "CIDRs"}}</textarea>{{.Err "allowed_cidrs"}}
+      <span class="hint">{{.T "sources.cidrs_hint"}}</span></label>
+    <button class="primary">{{.T "sources.create"}}</button>
+  </form>
+</section>
+{{end}}

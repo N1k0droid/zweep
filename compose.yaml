@@ -1,0 +1,73 @@
+# Zweep for Zabbix: production stack (Zweep + PostgreSQL). Made by N1k0droid, AGPL-3.0-only.
+# Like it? A star on https://github.com/N1k0droid/zweep and a follow help the project grow.
+#
+# Quick start (details: docs/manual/03-installation.md):
+#   cp .env.example .env                              # then edit it
+#   mkdir -p secrets backups
+#   head -c 32 /dev/urandom > secrets/master.key
+#   openssl rand -hex 24 > secrets/postgres-password
+#   printf 'postgres://zweep:%s@db:5432/zweep?sslmode=disable' "$(cat secrets/postgres-password)" > secrets/database-url
+#   chmod 600 secrets/*
+#   sudo chown 65532:65532 backups secrets/master.key secrets/database-url
+#   docker compose up -d
+#
+# Secrets are files, never environment variables. Keep the master key away from the backups: whoever
+# has both can read every secret.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zweep
+      POSTGRES_DB: zweep
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./secrets/postgres-password:/run/secrets/postgres-password:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "zweep", "-d", "zweep"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [zweep]
+
+  zweep:
+    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ZWEEP_DATABASE_URL_FILE: /run/secrets/database-url
+      ZWEEP_MASTER_KEY_FILE: /run/secrets/master.key
+      ZWEEP_SERVICE_URLS: ${ZWEEP_SERVICE_URLS:?set ZWEEP_SERVICE_URLS in .env}
+      ZWEEP_TRUSTED_PROXIES: ${ZWEEP_TRUSTED_PROXIES:-}
+      ZWEEP_LISTEN_PLAIN: ${ZWEEP_LISTEN_PLAIN:-}
+      ZWEEP_BACKUP_DIR: /backups
+      ZWEEP_BACKUP_HOUR: ${ZWEEP_BACKUP_HOUR:-1}
+      ZWEEP_BACKUP_KEEP: ${ZWEEP_BACKUP_KEEP:-14}
+      ZWEEP_LOG_LEVEL: ${ZWEEP_LOG_LEVEL:-info}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./secrets/database-url:/run/secrets/database-url:ro
+      - ./secrets/master.key:/run/secrets/master.key:ro
+      - ./backups:/backups
+      # Offer a newer app without a new image: put the signed APK in ./apk and uncomment
+      # - ./apk:/usr/share/zweep/apk:ro
+    ports:
+      - "${ZWEEP_PUBLIC_PORT:-8080}:8080"           # public: Zabbix webhook and phones
+      - "127.0.0.1:${ZWEEP_ADMIN_PORT:-8081}:8081"  # dashboard: host loopback only (manual 3.6)
+      # Let's Encrypt HTTP-01 challenges (Settings → HTTPS): set ZWEEP_LISTEN_PLAIN=:8090 in .env and uncomment
+      # - "80:8090"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [zweep]
+
+networks:
+  zweep:
+
+volumes:
+  pgdata:

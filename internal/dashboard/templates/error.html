@@ -1,0 +1,8 @@
+{{define "title"}}{{.T "error.title"}}{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{.T "error.title"}}</h1>
+  <p>{{.T (index .Data "Message")}}</p>
+  <p><a href="/admin/status">{{.T "error.back"}}</a></p>
+</section>
+{{end}}

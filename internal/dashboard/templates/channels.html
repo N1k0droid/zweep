@@ -1,0 +1,46 @@
+{{define "title"}}{{.T "nav.channels"}}{{end}}
+{{define "content"}}
+<h1>{{.T "nav.channels"}}</h1>
+<h2>{{.T "channels.severity"}}</h2>
+<p class="muted small">{{.T "channels.severity_hint"}}</p>
+<table>
+  <thead><tr><th>Severity</th><th>{{.T "col.state"}}</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
+  <tbody>
+  {{range index .Data "Severity"}}
+  <tr>
+    <td><span translate="no" class="sev sev{{slice .ID 4}}">{{.Name}}</span></td>
+    <td>{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
+    {{if $.IsAdmin}}<td class="row-actions"><form autocomplete="off" method="post" action="/admin/severity/{{.ID}}">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      {{if .Enabled}}<button class="small" name="enabled" value="0">{{$.T "action.disable"}}</button>{{else}}<button class="small" name="enabled" value="1">{{$.T "action.enable"}}</button>{{end}}
+    </form></td>{{end}}
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+
+<div class="head section">
+  <h2>{{.T "channels.title"}}</h2>
+  {{if .IsAdmin}}<a class="button primary" href="/admin/channels/new">{{.T "channels.new"}}</a>{{end}}
+</div>
+<p class="muted small">{{.T "channels.custom_hint"}}</p>
+{{with index .Data "Custom"}}
+<table>
+  <thead><tr><th>{{$.T "field.name"}}</th><th>{{$.T "channels.rule"}}</th><th class="num">{{$.T "col.operators"}}</th><th>{{$.T "col.state"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{with .Description}}<div class="muted small">{{.}}</div>{{end}}</td>
+    <td class="small">{{with .Rule}}{{ruleSummary .}}{{end}}</td>
+    <td class="num">{{len .Users}}</td>
+    <td>{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
+    <td class="row-actions">
+      <a class="button small" href="/admin/channels/{{.ID}}">{{if $.IsAdmin}}{{$.T "action.edit"}}{{else}}{{$.T "action.open"}}{{end}}</a>
+      {{if $.IsAdmin}}<form autocomplete="off" method="post" action="/admin/channels/{{.ID}}/delete" data-confirm="{{$.T "channels.delete_confirm"}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="small danger">{{$.T "action.delete"}}</button></form>{{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "channels.none"}}</p>{{end}}
+{{end}}

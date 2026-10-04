@@ -1,0 +1,42 @@
+{{define "title"}}{{.T "nav.users"}}{{end}}
+{{define "content"}}
+<div class="head">
+  <h1>{{.T "nav.users"}}</h1>
+  {{if .IsAdmin}}<a class="button primary" href="/admin/users/new">{{.T "users.new"}}</a>{{end}}
+</div>
+<nav class="subtabs"><a href="/admin/users" class="on" aria-current="page">{{.T "nav.users"}}</a><a href="/admin/groups">{{.T "nav.groups"}}</a></nav>
+<h2>{{.T "users.operators"}}</h2>
+<p class="muted small">{{.T "users.operators_hint"}}</p>
+{{with index .Data "Operators"}}
+<table>
+  <thead><tr><th>{{$.T "field.username"}}</th><th>{{$.T "field.display_name"}}</th><th class="num">{{$.T "col.devices"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><a href="/admin/users/{{.Username}}"><b>{{.Username}}</b></a></td>
+    <td>{{.DisplayName}}</td>
+    <td class="num">{{.Devices}}{{if .Devices}} <span class="muted">({{.Online}} online)</span>{{end}}</td>
+    <td>{{if .Disabled}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{else}}<span class="pill ok">{{$.T "state.active"}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "users.none"}}</p>{{end}}
+
+<h2>{{.T "users.staff"}}</h2>
+<p class="muted small">{{.T "users.staff_hint"}}</p>
+<table>
+  <thead><tr><th>{{.T "field.username"}}</th><th>{{.T "field.display_name"}}</th><th>{{.T "field.role"}}</th><th>TOTP</th><th>{{.T "col.state"}}</th></tr></thead>
+  <tbody>
+  {{range index .Data "Staff"}}
+  <tr>
+    <td><a href="/admin/users/{{.Username}}"><b>{{.Username}}</b></a></td>
+    <td>{{.DisplayName}}</td>
+    <td>{{$.T (print "role." .Role)}}{{if .Primary}} <span class="pill accent" title="{{$.T "users.primary_hint"}}">{{$.T "users.primary"}}</span>{{end}}</td>
+    <td>{{if .HasTOTP}}<span class="pill ok">{{$.T "account.totp_on"}}</span>{{else}}<span class="pill muted">{{$.T "account.totp_off"}}</span>{{end}}</td>
+    <td>{{if .Disabled}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{else}}<span class="pill ok">{{$.T "state.active"}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

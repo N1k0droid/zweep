@@ -1,0 +1,48 @@
+{{define "title"}}{{with (index .Data "G").Name}}{{.}}{{else}}{{$.T "groups.new"}}{{end}}{{end}}
+{{define "content"}}
+{{$g := index .Data "G"}}
+<a class="back" href="/admin/groups">← {{.T "nav.groups"}}</a>
+<div class="head">
+  <h1>{{with $g.Name}}{{.}}{{else}}{{$.T "groups.new"}}{{end}}</h1>
+  {{if $g.ID}}<form autocomplete="off" method="post" action="/admin/groups/{{$g.ID}}/delete" data-confirm="{{.T "groups.delete_confirm"}}"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="danger">{{.T "action.delete"}}</button></form>{{end}}
+</div>
+<p class="muted small">{{.T "groups.hint"}}</p>
+{{with index .Data "Unreachable"}}<div class="banner warn small">{{$.T "perimeter.unreachable"}} {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}</div>{{end}}
+<form autocomplete="off" method="post" action="/admin/groups{{with $g.ID}}/{{.}}{{end}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="cols">
+    <section class="card">
+      <h2>{{.T "groups.general"}}</h2>
+      <label>{{.T "groups.name"}}<input name="name" {{.Inv "name"}} maxlength="64" value="{{$g.Name}}" required>{{.Err "name"}}</label>
+      <label>{{.T "groups.description"}}<input name="description" {{.Inv "description"}} maxlength="200" value="{{$g.Description}}">{{.Err "description"}}</label>
+      <fieldset><legend>{{.T "groups.members"}}</legend>
+        {{template "userpicker" .}}
+        <span class="hint">{{.T "groups.members_hint"}}</span>
+      </fieldset>
+      <fieldset><legend>{{.T "nav.channels"}}</legend>
+        {{range index .Data "ChannelChoices"}}<label class="check"><input type="checkbox" name="channels" value="{{.ID}}"{{if .Checked}} checked{{end}}> <span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{if not .Enabled}} <span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</label>{{else}}<span class="muted small">{{.T "channels.none"}}</span>{{end}}
+        <span class="hint">{{.T "groups.channels_hint"}}</span>
+      </fieldset>
+    </section>
+    <section class="card">
+      <h2>{{.T "groups.permissions"}}</h2>
+      <fieldset><legend>{{.T "perimeter.sources"}}</legend>
+        {{range index .Data "SourceChoices"}}<label class="check"><input type="checkbox" name="sources" value="{{.ID}}"{{if .Checked}} checked{{end}}> {{.Name}} <span class="muted">{{.ID}}</span></label>{{end}}
+        <span class="hint">{{.T "perimeter.sources_hint"}}</span>
+      </fieldset>
+      <fieldset><legend>Host group</legend>
+        {{template "grouppicker" .}}
+        <span class="hint">{{.T "groups.nested_hint"}}</span>
+      </fieldset>
+      <fieldset><legend>Severity</legend>
+        <div class="sev-toggles">{{range index .Data "SevChoices"}}<label class="check"><input type="checkbox" name="severities" value="{{.N}}"{{if .Checked}} checked{{end}}><span translate="no" class="sev sev{{.N}}">{{sevName .N}}</span></label>{{end}}</div>
+        {{.Err "severities"}}
+      </fieldset>
+      <label class="check"><input type="checkbox" name="can_ack" value="1"{{if $g.CanAck}} checked{{end}}> {{.T "perimeter.can_ack"}}</label>
+      <label class="check"><input type="checkbox" name="can_close" value="1"{{if $g.CanClose}} checked{{end}}> {{.T "perimeter.can_close"}}</label>
+      <p class="hint">{{.T "groups.additive_hint"}}</p>
+    </section>
+  </div>
+  <div class="actions"><button class="primary">{{.T "action.save"}}</button></div>
+</form>
+{{end}}

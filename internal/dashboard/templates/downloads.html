@@ -1,0 +1,84 @@
+{{define "title"}}Download{{end}}
+{{define "content"}}
+<h1>Download</h1>
+<p class="muted small">{{.T "dl.hint"}}</p>
+{{$d := .Data}}
+<div class="grid2">
+<section class="card">
+  <h2>{{.T "dl.generic"}}</h2>
+  <p class="muted small">{{.T "dl.generic_hint"}}</p>
+  <div class="actions">
+    <a class="button primary" href="/admin/downloads/media_zweep.yaml" download>media_zweep.yaml</a>
+    <a class="button" href="/admin/downloads/zweep-mediatype.js" download>zweep-mediatype.js</a>
+  </div>
+</section>
+<section class="card">
+  <h2>{{.T "dl.prefilled"}}</h2>
+  <p class="muted small">{{.T "dl.prefilled_hint"}}</p>
+  {{if index $d "Sources"}}
+  <form method="get" action="/admin/downloads/media_zweep.yaml" autocomplete="off">
+    <label>{{.T "col.source"}}
+      <select name="source">{{range index $d "Sources"}}<option value="{{.ID}}"{{if eq .ID (index $d "Source")}} selected{{end}}>{{.Name}} ({{.ID}})</option>{{end}}</select></label>
+    <label>server_url
+      {{with index $d "URLs"}}<select name="url">{{range $i, $u := .}}<option value="{{$i}}">{{$u}}</option>{{end}}</select>
+      {{else}}<span class="hint">{{$.T "dl.no_url"}}</span>{{end}}</label>
+    <div class="actions"><button class="primary">{{.T "dl.download"}}</button></div>
+  </form>
+  {{else}}<p class="muted">{{.T "dl.no_sources"}}</p>{{end}}
+</section>
+</div>
+<section class="card" id="app">
+  <h2>{{.T "apk.title"}}</h2>
+  {{if not (index $d "APKEnabled")}}
+  <p class="muted">{{.T "apk.disabled"}}</p>
+  {{else}}
+  {{with index $d "APK"}}
+  <table class="kv">
+    <tr><th>{{$.T "apk.version"}}</th><td><b>{{.VersionName}}</b> <span class="muted small">(build {{.VersionCode}})</span></td></tr>
+    <tr><th>{{$.T "apk.file"}}</th><td><code translate="no">{{.File}}</code> · {{index $d "APKSizeMB"}} MB</td></tr>
+    <tr><th>SHA-256</th><td><code translate="no" class="small">{{.SHA256}}</code></td></tr>
+    <tr><th>{{$.T "apk.cert"}}</th><td>{{with index $d "APKCert"}}<code translate="no" class="small">{{.}}</code>{{else}}<span class="err">{{$.T "apk.unsigned"}}</span>{{end}}</td></tr>
+  </table>
+  <p class="muted small">{{$.T "apk.update_hint"}}</p>
+  <div class="actions"><a class="button primary" href="/admin/downloads/zweep.apk" download>{{$.T "apk.download"}}</a></div>
+  <hr>
+  <h3>{{$.T "apk.public"}}</h3>
+  <p class="muted small">{{$.T "apk.public_hint"}}</p>
+  {{if $.IsAdmin}}
+  <div class="actions">
+    <form autocomplete="off" method="post" action="/admin/settings/app.public_download" class="inline">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="downloads">
+      {{if index $d "APKPublic"}}<input type="hidden" name="value" value="0"><button class="danger">{{$.T "apk.public_off"}}</button>
+      {{else}}<input type="hidden" name="value" value="1"><button data-confirm="{{$.T "apk.public_confirm"}}">{{$.T "apk.public_on"}}</button>{{end}}
+    </form>
+  </div>
+  {{else}}<p><span class="pill {{if index $d "APKPublic"}}warn{{else}}muted{{end}}">{{if index $d "APKPublic"}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}</span></p>{{end}}
+  {{with index $d "APKPublicURL"}}
+  <div class="qr-row"><img class="qr" src="{{index $d "APKPublicQR"}}" alt="QR" width="198" height="198">
+    <p><code translate="no">{{.}}</code><br><span class="muted small">{{$.T "apk.public_qr"}}</span></p></div>
+  {{else}}{{if index $d "APKPublic"}}<p class="muted small">{{$.T "enroll.no_url"}}</p>{{end}}{{end}}
+  {{else}}
+  <p class="muted">{{$.T "apk.none" (index $d "APKDir")}}</p>
+  {{end}}
+  {{with index $d "APKSkipped"}}
+  <details><summary class="small">{{$.T "apk.skipped" (len .)}}</summary>
+    <ul class="small">{{range .}}<li><code translate="no">{{.File}}</code>: {{.Reason}}</li>{{end}}</ul></details>
+  {{end}}
+  {{if $.IsAdmin}}<hr>
+  <div class="actions">
+    <form autocomplete="off" method="post" action="/admin/downloads/apk/rescan" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="small">{{$.T "apk.rescan"}}</button></form>
+    <span class="muted small">{{$.T "apk.rescan_hint"}}</span>
+  </div>{{end}}
+  {{end}}
+</section>
+<section class="card">
+  <h2>{{.T "dl.steps"}}</h2>
+  <ol class="steps">
+    <li>{{.T "dl.step1"}}</li>
+    <li>{{.T "dl.step2"}}</li>
+    <li>{{.T "dl.step3"}}</li>
+    <li>{{.T "dl.step4"}}</li>
+    <li>{{.T "dl.step5"}}</li>
+  </ol>
+</section>
+{{end}}

@@ -1,0 +1,214 @@
+{{define "title"}}{{(index .Data "U").Username}}{{end}}
+{{define "content"}}
+{{$u := index .Data "U"}}
+<a class="back" href="/admin/users">← {{.T "nav.users"}}</a>
+<div class="head">
+  <h1>{{$u.Username}} <span class="muted">{{$u.DisplayName}}</span></h1>
+  <span class="pill {{if $u.Disabled}}muted{{else}}ok{{end}}">{{.T (print "role." $u.Role)}}{{if $u.Disabled}} · {{.T "state.disabled"}}{{end}}</span>
+  {{if index .Data "IsPrimary"}}<span class="pill accent" title="{{.T "users.primary_hint"}}">{{.T "users.primary"}}</span>{{end}}
+</div>
+
+{{with index .Data "Risk"}}
+<section class="card risk" role="alert">
+  <h2>{{$.T "risk.title"}}</h2>
+  <p>{{$.T "risk.text" .Remaining}}</p>
+  <p class="muted small">{{$.T "risk.cli"}}</p>
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/{{.Action}}">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{range .Fields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    <label class="check"><input type="checkbox" name="risk_ack" value="1" required> {{$.T "risk.ack"}}</label>
+    <label>{{$.T "risk.type_name" .Remaining}}<input name="risk_name" autocomplete="off" spellcheck="false" required>{{if .Retry}}<span class="field-err" role="alert">{{$.T "risk.mismatch"}}</span>{{end}}</label>
+    <div class="actions">
+      <button class="danger" data-confirm="{{$.T "risk.confirm"}}">{{$.T (print "risk.do_" .Action)}}</button>
+      <a class="button" href="/admin/users/{{$u.Username}}">{{$.T "action.cancel"}}</a>
+    </div>
+  </form>
+</section>
+{{end}}
+
+{{if index .Data "EnrollCode"}}
+<section class="card highlight">
+  <h2>{{.T "enroll.title"}}</h2>
+  <div class="enroll">
+    {{with index .Data "EnrollQR"}}<img class="qr" src="{{.}}" alt="QR" width="246" height="246">{{end}}
+    <div>
+      <p>{{.T "enroll.scan"}}</p>
+      <p class="small">{{.T "enroll.manual"}}</p>
+      {{with index .Data "EnrollURL"}}<p class="small">{{$.T "field.server"}}: <code translate="no" class="secret">{{.}}</code></p>{{else}}<p class="banner warn small">{{.T "enroll.no_url"}}</p>{{end}}
+      <p class="small">{{.T "field.enroll_code"}}: <code translate="no" class="secret">{{index .Data "EnrollCode"}}</code></p>
+      <p class="muted small">{{.T "enroll.expires" (index .Data "EnrollExpires")}}</p>
+    </div>
+  </div>
+</section>
+{{end}}
+
+<div class="cols">
+{{if eq $u.Role "operator"}}
+<div class="stack">
+<section class="card" id="perimeter">
+  <h2>{{.T "perimeter.title"}}</h2>
+  <p class="muted small">{{.T "perimeter.hint"}}</p>
+  {{with index .Data "Unreachable"}}<div class="banner warn small">{{$.T "perimeter.unreachable"}} {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}</div>{{end}}
+  {{$p := index .Data "Perimeter"}}
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/perimeter">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <fieldset><legend>{{.T "perimeter.sources"}}</legend>
+      {{range index .Data "SourceChoices"}}<label class="check"><input type="checkbox" name="sources" value="{{.ID}}"{{if .Checked}} checked{{end}}> {{.Name}} <span class="muted">{{.ID}}</span>{{with .From}} <span class="inh" title="{{$.T "inh.from" .}}">{{.}}</span>{{end}}</label>{{end}}
+      {{with index .Data "AllSourcesFrom"}}<span class="hint">{{$.T "inh.all_sources" .}}</span>{{end}}
+      <span class="hint">{{.T "perimeter.sources_hint"}}</span>
+    </fieldset>
+    <fieldset><legend>Host group</legend>
+      {{template "grouppicker" .}}
+      <span class="hint">{{.T "groups.nested_hint"}}</span>
+    </fieldset>
+    <fieldset><legend>Severity</legend>
+      <div class="sev-toggles">{{range index .Data "SevChoices"}}<label class="check"><input type="checkbox" name="severities" value="{{.N}}"{{if .Checked}} checked{{end}}><span translate="no" class="sev sev{{.N}}">{{sevName .N}}</span></label>{{end}}</div>
+      {{.Err "severities"}}
+      {{$inh := false}}{{range index .Data "SevChoices"}}{{if .From}}{{$inh = true}}{{end}}{{end}}
+      {{if $inh}}<div class="inh-line"><span class="muted small">{{.T "inh.title"}}</span>{{range index .Data "SevChoices"}}{{if .From}}<span class="sev sev{{.N}} inherited" translate="no" title="{{$.T "inh.from" .From}}">{{sevName .N}}</span>{{end}}{{end}}</div>{{end}}
+      <span class="hint">{{.T "perimeter.severities_hint"}}</span>
+    </fieldset>
+    <label class="check"><input type="checkbox" name="can_ack" value="1"{{if $p.CanAck}} checked{{end}}> {{.T "perimeter.can_ack"}}{{with index .Data "AckFrom"}} <span class="inh" title="{{$.T "inh.from" .}}">{{.}}</span>{{end}}</label>
+    <label class="check"><input type="checkbox" name="can_close" value="1"{{if $p.CanClose}} checked{{end}}> {{.T "perimeter.can_close"}}{{with index .Data "CloseFrom"}} <span class="inh" title="{{$.T "inh.from" .}}">{{.}}</span>{{end}}</label>
+    <p class="hint">{{.T "inh.hint"}}</p>
+    <div class="actions">
+      <button class="primary">{{.T "action.save"}}</button>
+      {{if index .Data "HasPerimeter"}}<button name="action" value="remove" class="danger" data-confirm="{{.T "perimeter.remove_confirm"}}">{{.T "perimeter.remove"}}</button>{{end}}
+    </div>
+  </form>
+</section>
+{{if .IsAdmin}}
+<section class="card">
+  <h2>{{.T "users.account"}}</h2>
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/account">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.display_name"}}<input name="display_name" {{.Inv "display_name"}} value="{{$u.DisplayName}}">{{.Err "display_name"}}</label>
+    <label>{{.T "field.role"}}
+      <select name="role" {{.Inv "role"}}>
+        <option value="operator"{{if eq $u.Role "operator"}} selected{{end}}>{{.T "role.operator"}}</option>
+        <option value="manager"{{if eq $u.Role "manager"}} selected{{end}}>{{.T "role.manager"}}</option>
+        <option value="admin"{{if eq $u.Role "admin"}} selected{{end}}>{{.T "role.admin"}}</option>
+      </select>{{.Err "role"}}<span class="hint">{{.T "users.role_change_hint"}}</span></label>
+    <label class="check"><input type="checkbox" name="disabled" value="1"{{if $u.Disabled}} checked{{end}}> {{.T "users.disabled"}}</label>
+    <div class="actions"><button class="primary">{{.T "action.save"}}</button></div>
+  </form>
+</section>
+{{end}}
+</div>
+<div class="stack">
+<section class="card" id="groups">
+  <h2>{{.T "groups.title"}}</h2>
+  <p class="muted small">{{.T "groups.user_hint"}}</p>
+  {{with index .Data "GroupMembership"}}
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/groups">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{range .}}<label class="check"><input type="checkbox" name="groups" value="{{.ID}}"{{if .Checked}} checked{{end}}> <a href="/admin/groups/{{.ID}}">{{.Name}}</a>{{with .Description}} <span class="muted small">— {{.}}</span>{{end}}</label>{{end}}
+    <div class="actions"><button class="primary">{{$.T "action.save"}}</button></div>
+  </form>
+  {{else}}<p class="muted">{{.T "groups.none"}} <a href="/admin/groups/new">{{.T "groups.new"}}</a></p>{{end}}
+</section>
+<section class="card" id="channels">
+  <h2>{{.T "channels.title"}}</h2>
+  <p class="muted small">{{.T "channels.user_hint"}}</p>
+  {{with index .Data "ChannelChoices"}}
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/channels">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{range .}}<label class="check"><input type="checkbox" name="channels" value="{{.ID}}"{{if .Checked}} checked{{end}}> <span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{if not .Enabled}} <span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}{{with .From}} <span class="inh" title="{{$.T "inh.from" .}}">{{.}}</span>{{end}}{{with .Description}} <span class="muted small">— {{.}}</span>{{end}}</label>{{end}}
+    <div class="actions"><button class="primary">{{$.T "action.save"}}</button></div>
+  </form>
+  {{else}}<p class="muted">{{.T "channels.none"}}</p>{{end}}
+</section>
+{{if .IsAdmin}}
+<section class="card">
+  <h2>{{.T "field.password"}}</h2>
+  <p class="muted small">{{if $u.HasPassword}}{{.T "users.password_is_set"}}{{else}}{{.T "users.password_not_set"}}{{end}}</p>
+  <form method="post" action="/admin/users/{{$u.Username}}/password" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.new_password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password">{{.Err "password"}}</label>
+    <label>{{.T "field.confirm"}}<input name="confirm" {{.Inv "confirm"}} type="password" autocomplete="new-password">{{.Err "confirm"}}</label>
+    <p class="muted small">{{.T "password.policy"}}{{if eq $u.Role "operator"}} {{.T "users.password_empty_hint"}}{{end}}</p>
+    <div class="actions"><button class="primary">{{.T "users.set_password"}}</button></div>
+  </form>
+  <hr>
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/delete" data-confirm="{{.T "users.delete_confirm" $u.Username}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="danger">{{.T "users.delete"}}</button>
+  </form>
+</section>
+{{end}}
+<section class="card" id="devices">
+  <div class="head">
+    <h2>{{.T "nav.devices"}}</h2>
+    {{if .IsAdmin}}{{if not $u.Disabled}}
+    <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/enroll"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="primary">{{.T "enroll.create"}}</button></form>
+    {{end}}{{end}}
+  </div>
+  {{with index .Data "Devices"}}
+  <table>
+    <thead><tr><th>{{$.T "col.device"}}</th><th>{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
+    <tbody>
+    {{range .}}
+    <tr>
+      <td><b>{{.Name}}</b><br><span class="muted small">{{.Vendor}} {{.Model}} · {{.OSVersion}}</span></td>
+      <td><span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span></td>
+      <td>{{since .LastSeenAt}}</td>
+      <td class="num ver">{{.AppVersion}}{{if and .AppBuild $.Data.LatestBuild (lt .AppBuild $.Data.LatestBuild)}} <span class="pill warn" title="{{$.T "apk.outdated_hint"}}">{{$.T "apk.outdated"}}</span>{{end}}</td>
+      <td class="num">{{.Pending}}{{if .Unconfirmed}} <span class="pill err">{{.Unconfirmed}} {{$.T "status.unconfirmed"}}</span>{{end}}</td>
+      {{if $.IsAdmin}}<td><form autocomplete="off" method="post" action="/admin/devices/{{.ID}}/revoke" data-confirm="{{$.T "device.revoke_confirm"}}">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/admin/users/{{$u.Username}}">
+        <button class="danger small">{{$.T "device.revoke"}}</button></form></td>{{end}}
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">{{.T "device.none"}}</p>{{end}}
+</section>
+</div>
+{{else if .IsAdmin}}
+<section class="card">
+  <h2>{{.T "users.account"}}</h2>
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/account">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.display_name"}}<input name="display_name" {{.Inv "display_name"}} value="{{$u.DisplayName}}">{{.Err "display_name"}}</label>
+    <label>{{.T "field.role"}}
+      <select name="role" {{.Inv "role"}}>
+        <option value="operator"{{if eq $u.Role "operator"}} selected{{end}}>{{.T "role.operator"}}</option>
+        <option value="manager"{{if eq $u.Role "manager"}} selected{{end}}>{{.T "role.manager"}}</option>
+        <option value="admin"{{if eq $u.Role "admin"}} selected{{end}}>{{.T "role.admin"}}</option>
+      </select>{{.Err "role"}}<span class="hint">{{.T "users.role_change_hint"}}</span></label>
+    <label class="check"><input type="checkbox" name="disabled" value="1"{{if $u.Disabled}} checked{{end}}> {{.T "users.disabled"}}</label>
+    {{if index .Data "IsPrimary"}}<p class="muted small">{{.T "users.primary_hint"}}</p>{{end}}
+    <div class="actions"><button class="primary">{{.T "action.save"}}</button></div>
+  </form>
+  <hr>
+  <h2>{{.T "account.totp"}}</h2>
+  <p>{{if $u.HasTOTP}}<span class="pill ok">{{.T "account.totp_on"}}</span>{{else}}<span class="pill muted">{{.T "account.totp_off"}}</span>{{end}}</p>
+  {{if and $u.HasTOTP (index .Data "ViewerPrimary") (not (index .Data "Self"))}}
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/totp/reset" data-confirm="{{.T "users.totp_reset_confirm" $u.Username}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p class="muted small">{{.T "users.totp_reset_hint"}}</p>
+    <button class="danger small">{{.T "users.totp_reset"}}</button>
+  </form>
+  {{else if $u.HasTOTP}}<p class="muted small">{{.T "users.totp_reset_primary_only"}}</p>{{end}}
+</section>
+<section class="card">
+  <h2>{{.T "field.password"}}</h2>
+  <p class="muted small">{{if $u.HasPassword}}{{.T "users.password_is_set"}}{{else}}{{.T "users.password_not_set"}}{{end}}</p>
+  <form method="post" action="/admin/users/{{$u.Username}}/password" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.new_password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password">{{.Err "password"}}</label>
+    <label>{{.T "field.confirm"}}<input name="confirm" {{.Inv "confirm"}} type="password" autocomplete="new-password">{{.Err "confirm"}}</label>
+    <p class="muted small">{{.T "password.policy"}}{{if eq $u.Role "operator"}} {{.T "users.password_empty_hint"}}{{end}}</p>
+    <div class="actions"><button class="primary">{{.T "users.set_password"}}</button></div>
+  </form>
+  {{if not (index .Data "IsPrimary")}}
+  <hr>
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/delete" data-confirm="{{.T "users.delete_confirm" $u.Username}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="danger">{{.T "users.delete"}}</button>
+  </form>
+  {{end}}
+</section>
+{{end}}
+</div>
+{{end}}

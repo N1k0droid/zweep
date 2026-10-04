@@ -1,0 +1,12 @@
+{{define "title"}}{{.T "totp.title"}}{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{.T "totp.title"}}</h1>
+  <p class="muted">{{.T "totp.hint"}}</p>
+  <form autocomplete="off" method="post" action="/admin/login/totp">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.code"}}<input name="code" {{.Inv "code"}} spellcheck="false" autocapitalize="off" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required autofocus>{{.Err "code"}}</label>
+    <button class="primary">{{.T "totp.submit"}}</button>
+  </form>
+</section>
+{{end}}

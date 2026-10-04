@@ -1,0 +1,27 @@
+{{define "title"}}Logging{{end}}
+{{define "content"}}
+<h1>Logging</h1>
+<p class="muted small">{{.T "logs.hint"}}</p>
+{{$d := .Data}}
+<form autocomplete="off" method="get" action="/admin/logs" class="filters" id="log-filters">
+  <label>{{.T "logs.component"}}
+    <select name="component"><option value="">{{.T "filter.any"}}</option>{{range index $d "Components"}}<option value="{{.}}"{{if eq . (index $d "Component")}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "logs.level"}}
+    <select name="level">{{$l := index $d "Level"}}
+      <option value="">DEBUG+</option>
+      <option value="INFO"{{if eq $l "INFO"}} selected{{end}}>INFO+</option>
+      <option value="WARN"{{if eq $l "WARN"}} selected{{end}}>WARN+</option>
+      <option value="ERROR"{{if eq $l "ERROR"}} selected{{end}}>ERROR</option>
+    </select></label>
+  <label>{{.T "logs.lines"}}
+    <select name="n">{{$n := index $d "N"}}{{range index $d "Choices"}}<option value="{{.}}"{{if eq . $n}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "problems.search"}}<input name="q" value="{{index $d "Q"}}" spellcheck="false" placeholder="{{.T "logs.search_hint"}}…"></label>
+  <label class="check"><input type="checkbox" name="live" value="1"{{if index $d "Live"}} checked{{end}}> {{.T "logs.live"}}</label>
+  <div class="actions"><button class="primary">{{.T "action.filter"}}</button><a class="button" href="/admin/logs">{{.T "action.reset"}}</a></div>
+</form>
+<div class="logbar"><span class="muted small" id="log-count">{{.T "logs.count" (len (index $d "Lines"))}}</span>
+  <span class="muted small" id="log-state" aria-live="polite">{{if index $d "Live"}}{{.T "logs.live_on"}}{{end}}</span>
+  <button type="button" class="small" id="log-pause" hidden data-pause="{{.T "logs.pause"}}" data-resume="{{.T "logs.resume"}}">{{.T "logs.pause"}}</button></div>
+<pre class="logview" id="logview" tabindex="0" translate="no" data-max="{{index $d "N"}}"{{if index $d "Live"}} data-live="/admin/logs/live?{{index $d "Query"}}"{{end}}>{{range index $d "Lines"}}<span class="l-{{.Level}}">{{.Text}}</span>
+{{end}}</pre>
+{{end}}

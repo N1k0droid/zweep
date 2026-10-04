@@ -1,0 +1,10 @@
+.git
+dist
+test
+tools
+docs
+*.md
+.env
+secrets
+!THIRD_PARTY_NOTICES.md
+android

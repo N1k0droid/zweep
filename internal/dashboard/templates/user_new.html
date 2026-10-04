@@ -1,0 +1,25 @@
+{{define "title"}}{{.T "users.new"}}{{end}}
+{{define "content"}}
+<a class="back" href="/admin/users">← {{.T "nav.users"}}</a>
+<h1>{{.T "users.new"}}</h1>
+<section class="card form-card">
+  <form method="post" action="/admin/users" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.username"}}<input name="username" {{.Inv "username"}} spellcheck="false" autocapitalize="off" value="{{index .Data "Username"}}" required autofocus>{{.Err "username"}}
+      <span class="hint">{{.T "users.username_hint"}}</span></label>
+    <label>{{.T "field.display_name"}}<input name="display_name" {{.Inv "display_name"}} value="{{index .Data "DisplayName"}}">{{.Err "display_name"}}</label>
+    <label>{{.T "field.role"}}
+      <select name="role" {{.Inv "role"}}>
+        {{$r := index .Data "Role"}}
+        <option value="operator"{{if eq $r "operator"}} selected{{end}}>{{.T "role.operator"}} — {{.T "role.operator_hint"}}</option>
+        <option value="manager"{{if eq $r "manager"}} selected{{end}}>{{.T "role.manager"}} — {{.T "role.manager_hint"}}</option>
+        <option value="admin"{{if eq $r "admin"}} selected{{end}}>{{.T "role.admin"}} — {{.T "role.admin_hint"}}</option>
+      </select>{{.Err "role"}}</label>
+    <label>{{.T "field.password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password">{{.Err "password"}}
+      <span class="hint">{{.T "users.password_hint"}}</span></label>
+    <label>{{.T "field.confirm"}}<input name="confirm" {{.Inv "confirm"}} type="password" autocomplete="new-password">{{.Err "confirm"}}</label>
+    <p class="muted small">{{.T "password.policy"}}</p>
+    <button class="primary">{{.T "users.create"}}</button>
+  </form>
+</section>
+{{end}}

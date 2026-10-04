@@ -1,0 +1,47 @@
+{{define "title"}}{{.T "nav.settings"}}{{end}}
+{{define "content"}}
+<h1>{{.T "nav.settings"}}</h1>
+<nav class="subtabs"><a href="/admin/settings" class="on" aria-current="page">{{.T "settings.tab_general"}}</a><a href="/admin/https">HTTPS</a></nav>
+<p class="muted small">{{.T "settings.hint"}}</p>
+<table>
+  <thead><tr><th>{{.T "settings.name"}}</th><th>{{.T "settings.value"}}</th></tr></thead>
+  <tbody>
+  {{range index .Data "Rows"}}
+  <tr id="{{.Key}}">
+    <td><b>{{$.T (print "setting." .Key)}}</b><br><span class="muted small">{{$.T (print "setting." .Key ".hint")}}</span></td>
+    <td class="nowrap">
+      {{if $.IsAdmin}}
+      <form autocomplete="off" method="post" action="/admin/settings/{{.Key}}" class="inline">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        {{if eq .Unit "bool"}}
+          <select name="value"><option value="1"{{if .On}} selected{{end}}>{{$.T "settings.on"}}</option><option value="0"{{if not .On}} selected{{end}}>{{$.T "settings.off"}}</option></select>
+        {{else}}
+          <input name="value" type="number" min="0" value="{{.Value}}" class="num"> <span class="muted">{{$.T (print "unit." .Unit)}}</span>
+        {{end}}
+        <button class="small">{{$.T "action.save"}}</button>
+      </form>
+      {{if eq .Key (index $.Data "ErrKey")}}<span class="field-err" role="alert">{{index $.Data "ErrMsg"}}</span>{{end}}
+      {{else}}
+        {{if eq .Unit "bool"}}{{if .On}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}{{else}}{{.Value}} {{$.T (print "unit." .Unit)}}{{end}}
+      {{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{if $.IsAdmin}}{{with index .Data "Danger"}}
+<section class="card danger-zone" id="danger">
+  <h2>{{$.T "danger.title"}}</h2>
+  <p class="muted small">{{$.T "danger.hint"}}</p>
+  {{range .Ops}}
+  <form autocomplete="off" method="post" action="/admin/danger/{{.Key}}" class="danger-op">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div><b>{{$.T (print "danger." .Key)}}</b><br><span class="muted small">{{$.T (print "danger." .Key ".hint")}}</span></div>
+    <label class="small">{{$.T "danger.type" .Word}}<input name="confirm" autocomplete="off" spellcheck="false" class="num" pattern="{{.Word}}" required></label>
+    <button class="danger" data-confirm="{{$.T (print "danger." .Key ".confirm")}}">{{$.T (print "danger." .Key ".button")}}</button>
+    {{if eq $.Data.Danger.Failed .Key}}<span class="field-err" role="alert">{{$.T "danger.mismatch" .Word}}</span>{{end}}
+  </form>
+  {{end}}
+</section>
+{{end}}{{end}}
+{{end}}

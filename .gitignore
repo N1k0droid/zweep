@@ -1,0 +1,16 @@
+dist/
+build/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+secrets/
+.env
+*.local.*
+test/zabbixjs/node_modules/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+*.apk
+*.keystore
+*.jks

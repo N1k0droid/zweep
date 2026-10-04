@@ -1,0 +1,37 @@
+{{define "title"}}{{.T "outside.title"}}{{end}}
+{{define "content"}}
+<h1>Problems</h1>
+<nav class="subtabs"><a href="/admin/problems">{{.T "alerts.tab_problems"}}</a><a href="/admin/alerts">{{.T "alerts.tab_open"}}</a><a href="/admin/outside" class="on" aria-current="page">{{.T "outside.title"}}</a></nav>
+<p class="muted small">{{.T "outside.hint"}}</p>
+<form autocomplete="off" method="get" action="/admin/outside" class="filters">
+  <label>{{.T "outside.operator"}}
+    <select name="user"><option value="">{{.T "filter.any"}}</option>{{$u := index .Data "User"}}{{range index .Data "Users"}}<option value="{{.}}"{{if eq . $u}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "col.source"}}
+    <select name="source"><option value="">{{.T "filter.any"}}</option>{{$src := index .Data "Source"}}{{range index .Data "Sources"}}<option value="{{.ID}}"{{if eq .ID $src}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>Host group<input name="hostgroup" value="{{index .Data "Hostgroup"}}" placeholder="Databases…"></label>
+  <label>{{.T "outside.reason"}}
+    <select name="reason"><option value="">{{.T "filter.any"}}</option>{{$r := index .Data "Reason"}}{{range index .Data "ReasonKinds"}}<option value="{{.}}"{{if eq . $r}} selected{{end}}>{{$.T (print "outside.miss_" .)}}</option>{{end}}</select></label>
+  <label>{{.T "outside.days"}}<input name="days" type="number" min="1" max="3650" value="{{index .Data "Days"}}" class="num"></label>
+  {{if index .Data "SeenAt"}}<label class="check"><input type="checkbox" name="seen" value="1"{{if index .Data "ShowSeen"}} checked{{end}}> {{.T "outside.show_seen" (index .Data "SeenAt")}}</label>{{end}}
+  <div class="actions"><button class="primary">{{.T "action.filter"}}</button><a class="button" href="/admin/outside">{{.T "action.reset"}}</a></div>
+</form>
+<p class="muted small">{{.T "problems.count" (len (index .Data "Rows")) (index .Data "Total")}}</p>
+{{with index .Data "Rows"}}
+<table>
+  <thead><tr><th>{{$.T "outside.when"}}</th><th>{{$.T "outside.operator"}}</th><th>Severity</th><th>Event</th><th>Host groups</th><th>{{$.T "col.source"}}</th><th>{{$.T "outside.reason"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td class="nowrap">{{.When}}</td>
+    <td><a href="/admin/users/{{.Recipient}}">{{.Recipient}}</a></td>
+    <td><span translate="no" class="sev sev{{.Severity}}">{{sevName .Severity}}</span></td>
+    <td><b>{{if .Host}}{{.Host}}: {{end}}{{.Name}}</b><br><span class="muted small">{{.Kind}} · event {{.EventID}}</span></td>
+    <td class="small">{{range $i, $g := .Hostgroups}}{{if $i}}<br>{{end}}{{$g}}{{else}}<span class="muted">—</span>{{end}}</td>
+    <td>{{.SourceName}}</td>
+    <td>{{range .Reasons}}<span class="pill warn">{{$.T (print "outside.miss_" .)}}</span> {{end}}{{if .Current}}<br><span class="muted small">{{$.T "outside.current"}}</span>{{end}}{{if not .Reasons}}<span class="muted small">{{$.T "outside.miss_unknown"}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "outside.none"}}</p>{{end}}
+{{end}}

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="56 56 488 488" width="512" height="512">
+  <title>Zweep</title>
+  <defs>
+    <radialGradient id="scope" cx="300.0" cy="300.0" r="232" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22304F"/><stop offset="1" stop-color="#151D31"/></radialGradient>
+    <radialGradient id="h0" cx="421.90" cy="143.97" r="45.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.52"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k0" cx="421.90" cy="143.97" r="15.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.75" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <radialGradient id="h1" cx="137.19" cy="206.00" r="31.97" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.45"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k1" cx="137.19" cy="206.00" r="11.50" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.68" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <radialGradient id="h2" cx="173.40" cy="422.26" r="22.95" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.39"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k2" cx="173.40" cy="422.26" r="9.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.61" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <radialGradient id="h3" cx="452.79" cy="374.52" r="16.80" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.34"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k3" cx="452.79" cy="374.52" r="7.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.57" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <radialGradient id="h4" cx="276.90" cy="135.62" r="11.30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.30"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k4" cx="276.90" cy="135.62" r="5.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.53" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <radialGradient id="h5" cx="352.98" cy="512.49" r="8.64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6A3A" stop-opacity="0.27"/><stop offset="1" stop-color="#D32F2E" stop-opacity="0"/></radialGradient>
+    <radialGradient id="k5" cx="352.98" cy="512.49" r="4.00" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF6B5E"/><stop offset="0.50" stop-color="#E5392F"/><stop offset="1" stop-color="#D32F2E"/></radialGradient>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6"/></filter>
+    <clipPath id="scopeClip"><circle cx="300.0" cy="300.0" r="232"/></clipPath>
+  </defs>
+  
+  <circle cx="300.0" cy="300.0" r="232" fill="url(#scope)"/>
+  <g clip-path="url(#scopeClip)" stroke="#FFFFFF" fill="none">
+    <circle cx="300.0" cy="300.0" r="160" stroke-width="2.5" stroke-opacity="0.35"/>
+    <path d="M68.0,300.0 H532.0 M300.0,68.0 V532.0" stroke-width="2.5" stroke-opacity="0.30"/>
+    <path d="M429.0,293.0 V307.0 M293.0,429.0 H307.0 M171.0,293.0 V307.0 M293.0,171.0 H307.0 M451.0,293.0 V307.0 M293.0,451.0 H307.0 M149.0,293.0 V307.0 M293.0,149.0 H307.0 M473.0,293.0 V307.0 M293.0,473.0 H307.0 M127.0,293.0 V307.0 M293.0,127.0 H307.0 M495.0,293.0 V307.0 M293.0,495.0 H307.0 M105.0,293.0 V307.0 M293.0,105.0 H307.0 M517.0,293.0 V307.0 M293.0,517.0 H307.0 M83.0,293.0 V307.0 M293.0,83.0 H307.0" stroke-width="2.5" stroke-opacity="0.45"/>
+  </g>
+  <g filter="url(#soft)">
+    <path d="M160.0,300.0 a140,140 0 1,0 280,0 a140,140 0 1,0 -280,0 Z M196.5,300.0 a103.5,103.5 0 1,0 207.0,0 a103.5,103.5 0 1,0 -207.0,0 Z" fill="#E5392F" fill-opacity="0.42" fill-rule="evenodd"/>
+    <path d="M132.0,300.0 a168,168 0 1,0 336,0 a168,168 0 1,0 -336,0 Z M160.0,300.0 a140,140 0 1,0 280,0 a140,140 0 1,0 -280,0 Z" fill="#E5392F" fill-opacity="0.31" fill-rule="evenodd"/>
+    <path d="M102.0,300.0 a198,198 0 1,0 396,0 a198,198 0 1,0 -396,0 Z M132.0,300.0 a168,168 0 1,0 336,0 a168,168 0 1,0 -336,0 Z" fill="#E5392F" fill-opacity="0.21" fill-rule="evenodd"/>
+    <path d="M73.0,300.0 a227,227 0 1,0 454,0 a227,227 0 1,0 -454,0 Z M102.0,300.0 a198,198 0 1,0 396,0 a198,198 0 1,0 -396,0 Z" fill="#E5392F" fill-opacity="0.11" fill-rule="evenodd"/>
+  </g>
+  <circle cx="421.90" cy="143.97" r="45.00" fill="url(#h0)"/>
+  <circle cx="421.90" cy="143.97" r="15" fill="url(#k0)" fill-opacity="1.00"/>
+  <circle cx="137.19" cy="206.00" r="31.97" fill="url(#h1)"/>
+  <circle cx="137.19" cy="206.00" r="11.5" fill="url(#k1)" fill-opacity="0.88"/>
+  <circle cx="173.40" cy="422.26" r="22.95" fill="url(#h2)"/>
+  <circle cx="173.40" cy="422.26" r="9" fill="url(#k2)" fill-opacity="0.75"/>
+  <circle cx="452.79" cy="374.52" r="16.80" fill="url(#h3)"/>
+  <circle cx="452.79" cy="374.52" r="7" fill="url(#k3)" fill-opacity="0.67"/>
+  <circle cx="276.90" cy="135.62" r="11.30" fill="url(#h4)"/>
+  <circle cx="276.90" cy="135.62" r="5" fill="url(#k4)" fill-opacity="0.59"/>
+  <circle cx="352.98" cy="512.49" r="8.64" fill="url(#h5)"/>
+  <circle cx="352.98" cy="512.49" r="4" fill="url(#k5)" fill-opacity="0.54"/>
+  <circle cx="300.0" cy="300.0" r="111.5" fill="#D32F2E"/>
+  <path d="M260.00,252.00 L340.00,252.00 L340.00,269.00 L284.62,331.00 L340.00,331.00 L340.00,348.00 L260.00,348.00 L260.00,331.00 L315.38,269.00 L260.00,269.00 Z" fill="#FFFFFF"/>
+</svg>

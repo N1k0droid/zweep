@@ -1,0 +1,117 @@
+{{define "title"}}HTTPS{{end}}
+{{define "content"}}
+<h1>{{.T "nav.settings"}}</h1>
+<nav class="subtabs"><a href="/admin/settings">{{.T "settings.tab_general"}}</a><a href="/admin/https" class="on" aria-current="page">HTTPS</a></nav>
+{{$d := .Data}}{{$st := index $d "Status"}}{{$s := index $d "S"}}
+<p class="muted small">{{.T "https.hint"}}</p>
+
+{{if $st.LastError}}<div class="banner err small" role="alert"><b>{{.T "https.error"}}</b> {{$st.LastError}}</div>{{end}}
+{{if $st.Fallback}}<div class="banner warn small">{{.T "https.fallback"}}</div>{{end}}
+{{if index $d "Expiring"}}<div class="banner warn small">{{.T "https.expiring" (index $d "Days")}}</div>{{end}}
+{{with index $d "Uncovered"}}<div class="banner warn small">{{$.T "https.uncovered"}} {{range $i, $h := .}}{{if $i}}, {{end}}<code>{{$h}}</code>{{end}}</div>{{end}}
+{{if $s.Internet}}<div class="banner warn small">{{.T "https.internet_on"}}</div>{{end}}
+
+<div class="cols">
+<div class="stack">
+<section class="card">
+  <h2>{{.T "https.current"}}</h2>
+  <table class="kv">
+    <tr><th>{{.T "https.mode"}}</th><td><b>{{.T (print "https.mode_" $st.Settings.Mode)}}</b>{{if eq $st.Settings.Mode "acme"}} · {{.T (print "https.ca_" $st.Settings.ACME.CA)}} · {{$st.Settings.ACME.Challenge}}{{end}}</td></tr>
+    {{with $st.Info}}
+    <tr><th>{{$.T "https.subject"}}</th><td>{{.Subject}}</td></tr>
+    <tr><th>{{$.T "https.names"}}</th><td>{{range $i, $n := .Names}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}</td></tr>
+    <tr><th>{{$.T "https.issuer"}}</th><td>{{.Issuer}}{{if .SelfSigned}} <span class="pill muted">{{$.T "https.self_signed"}}</span>{{end}}</td></tr>
+    <tr><th>{{$.T "https.valid_until"}}</th><td class="nowrap">{{.NotAfter.Local.Format "2006-01-02 15:04"}} <span class="muted">({{$.T "https.days" (index $d "Days")}})</span></td></tr>
+    <tr><th>{{$.T "https.pin"}}</th><td><code translate="no" class="secret small">{{.Pin}}</code></td></tr>
+    <tr><th>{{$.T "https.chain"}}</th><td>{{.Chain}}</td></tr>
+    {{end}}
+    {{if not $st.Obtained.IsZero}}<tr><th>{{.T "https.obtained"}}</th><td>{{$st.Obtained.Local.Format "2006-01-02 15:04"}}</td></tr>{{end}}
+    {{if eq $st.Settings.Mode "acme"}}<tr><th>{{.T "https.renewal"}}</th><td class="muted small">{{.T "https.renewal_auto"}}</td></tr>{{end}}
+  </table>
+  {{if eq $st.Settings.Mode "off"}}<p class="muted small">{{.T "https.off_hint"}}</p>{{end}}
+</section>
+
+{{if .IsAdmin}}
+<section class="card">
+  <h2>{{.T "https.advanced"}}</h2>
+  <div class="opts">
+      <label class="check"><input form="https-form" type="checkbox" name="allow_plain" value="1"{{if $s.AllowPlain}} checked{{end}}> {{.T "https.allow_plain"}}</label>
+      <span class="hint">{{.T "https.allow_plain_hint"}}</span>
+      <label class="check"><input form="https-form" type="checkbox" name="internet" value="1"{{if $s.Internet}} checked{{end}}> {{.T "https.internet"}}</label>
+      <span class="hint">{{.T "https.internet_hint"}}</span>
+      <label class="check"><input form="https-form" type="checkbox" name="port80_redirect" value="1"{{if $s.Port80Redirect}} checked{{end}}> {{.T "https.port80"}}</label>
+      <label>{{.T "https.port80_allowed"}}<input form="https-form" name="port80_allowed" value="{{range $i, $c := $s.Port80Allowed}}{{if $i}}, {{end}}{{$c}}{{end}}" placeholder="10.0.0.0/8, 192.168.0.0/16" spellcheck="false" {{.Inv "port80_allowed"}}>{{.Err "port80_allowed"}}<span class="hint">{{.T "https.port80_hint"}}</span></label>
+      <label>{{.T "https.qr_pin"}}
+        <select form="https-form" name="qr_pin">{{range $q := list "auto" "none" "leaf" "ca"}}<option value="{{$q}}"{{if eq $s.QRPin $q}} selected{{end}}>{{$.T (print "https.qr_" $q)}}</option>{{end}}</select>
+        <span class="hint">{{.T "https.qr_pin_hint"}}</span></label>
+  </div>
+</section>
+{{end}}
+</div>
+
+<section class="card">
+  <h2>{{.T "https.change"}}</h2>
+  {{if .IsAdmin}}
+  <form method="post" action="/admin/https" enctype="multipart/form-data" autocomplete="off" id="https-form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "https.mode"}}
+      <select name="mode" data-show-for {{.Inv "mode"}}>
+        {{range $m := list "off" "selfsigned" "upload" "acme"}}<option value="{{$m}}"{{if eq $s.Mode $m}} selected{{end}}>{{$.T (print "https.mode_" $m)}}</option>{{end}}
+      </select>{{.Err "mode"}}</label>
+
+    <div data-for="mode:off"><p class="hint">{{.T "https.mode_off_hint"}}</p></div>
+    <div data-for="mode:selfsigned">
+      <p class="hint">{{.T "https.mode_selfsigned_hint"}}</p>
+      <label>{{.T "https.names"}}<textarea name="names" rows="2" spellcheck="false">{{range $i, $n := $s.Names}}{{if $i}}
+{{end}}{{$n}}{{end}}</textarea><span class="hint">{{.T "https.names_hint"}}</span></label>
+    </div>
+    <div data-for="mode:upload">
+      <p class="hint">{{.T "https.mode_upload_hint"}}</p>
+      <label>{{.T "https.cert_file"}}<input type="file" name="cert_file" accept=".cer,.crt,.pem,.der,.pfx,.p12" {{.Inv "certificate"}}>{{.Err "certificate"}}</label>
+      <label>{{.T "https.key_file"}}<input type="file" name="key_file" accept=".key,.pem"></label>
+      <label>{{.T "https.pfx_password"}}<input type="password" name="pfx_password" autocomplete="off"><span class="hint">{{.T "https.pfx_password_hint"}}</span></label>
+    </div>
+    <div data-for="mode:acme">
+      <p class="hint">{{.T "https.mode_acme_hint"}}</p>
+      <label>{{.T "https.ca"}}
+        <select name="ca" data-show-for {{.Inv "ca"}}>
+          {{range $c := list "letsencrypt" "letsencrypt-staging" "custom"}}<option value="{{$c}}"{{if eq $s.ACME.CA $c}} selected{{end}}>{{$.T (print "https.ca_" $c)}}</option>{{end}}
+        </select>{{.Err "ca"}}</label>
+      <div data-for="ca:custom">
+        <label>{{.T "https.directory_url"}}<input type="url" name="directory_url" value="{{$s.ACME.DirectoryURL}}" placeholder="https://ca.azienda.local/acme/directory" spellcheck="false" {{.Inv "directory_url"}}>{{.Err "directory_url"}}</label>
+        <label>{{.T "https.root_pem"}}<textarea name="root_pem" rows="3" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----" {{.Inv "root_pem"}}>{{$s.ACME.RootPEM}}</textarea>{{.Err "root_pem"}}<span class="hint">{{.T "https.root_pem_hint"}}</span></label>
+        <label>{{.T "https.eab"}}<input name="eab_key_id" value="{{$s.ACME.EABKeyID}}" placeholder="Key ID" spellcheck="false"></label>
+        <label><input type="password" name="eab_mac_key" value="{{$s.ACME.EABMACKey}}" placeholder="HMAC key" autocomplete="off"><span class="hint">{{.T "https.eab_hint"}}</span></label>
+      </div>
+      <label>{{.T "https.domains"}}<textarea name="domains" rows="2" spellcheck="false" placeholder="zweep.azienda.it" {{.Inv "domains"}}>{{if eq $s.Mode "acme"}}{{range $i, $n := $s.Names}}{{if $i}}
+{{end}}{{$n}}{{end}}{{end}}</textarea>{{.Err "domains"}}</label>
+      <label>{{.T "https.email"}}<input type="email" name="email" value="{{$s.ACME.Email}}" spellcheck="false"><span class="hint">{{.T "https.email_hint"}}</span></label>
+      <label>{{.T "https.challenge"}}
+        <select name="challenge" data-show-for {{.Inv "challenge"}}>
+          {{range $c := list "dns-01" "http-01" "tls-alpn-01"}}<option value="{{$c}}"{{if eq $s.ACME.Challenge $c}} selected{{end}}>{{$.T (print "https.ch_" $c)}}</option>{{end}}
+        </select>{{.Err "challenge"}}</label>
+      <p class="hint" data-for="challenge:http-01">{{.T "https.ch_http-01_hint"}}</p>
+      <p class="hint" data-for="challenge:tls-alpn-01">{{.T "https.ch_tls-alpn-01_hint"}}</p>
+      <div data-for="challenge:dns-01">
+        <p class="hint">{{.T "https.ch_dns-01_hint"}}</p>
+        <label>{{.T "https.dns_provider"}}
+          <select name="dns_provider" data-show-for {{.Inv "dns_provider"}}>
+            {{range index $d "ProviderNames"}}<option value="{{.}}"{{if eq $s.ACME.DNSProvider .}} selected{{end}}>{{$.T (print "https.dns_" .)}}</option>{{end}}
+          </select>{{.Err "dns_provider"}}</label>
+        {{range $p := index $d "ProviderNames"}}
+        <div data-for="dns_provider:{{$p}}">
+          {{range $f := index (index $d "Providers") $p}}
+          <label>{{$.T (print "https.dnsf_" $f)}}<input name="dns_{{$p}}_{{$f}}" {{if eq $s.ACME.DNSProvider $p}}value="{{index $s.ACME.DNS $f}}"{{end}} spellcheck="false" autocomplete="off" {{$.Inv (print "dns_" $f)}}>{{$.Err (print "dns_" $f)}}</label>
+          {{end}}
+          <span class="hint">{{$.T (print "https.dns_" $p "_hint")}}</span>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="actions"><button class="primary" data-confirm="{{.T "https.apply_confirm"}}">{{.T "https.apply"}}</button></div>
+  </form>
+  {{else}}<p class="muted">{{.T "https.admin_only"}}</p>{{end}}
+</section>
+</div>
+{{end}}

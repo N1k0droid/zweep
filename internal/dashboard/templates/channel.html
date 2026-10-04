@@ -1,0 +1,59 @@
+{{define "title"}}{{if index .Data "New"}}{{.T "channels.new"}}{{else}}{{(index .Data "C").Name}}{{end}}{{end}}
+{{define "content"}}
+{{$c := index .Data "C"}}{{$r := index .Data "Rule"}}{{$new := index .Data "New"}}
+<a class="back" href="/admin/channels">← {{.T "nav.channels"}}</a>
+<div class="head"><h1>{{if $new}}{{.T "channels.new"}}{{else}}<span class="chan{{with $c.Color}} s{{slice . 1}}{{end}}">{{$c.Name}}</span>{{end}}</h1></div>
+<div class="cols wide-left">
+<section class="card">
+  <h2>{{.T "channels.rule"}}</h2>
+  <p class="muted small">{{.T "channels.rule_hint"}}</p>
+  {{with index .Data "Unreachable"}}<div class="banner warn small">{{$.T "perimeter.unreachable"}} {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}</div>{{end}}
+  <form method="post" action="{{if $new}}/admin/channels{{else}}/admin/channels/{{$c.ID}}{{end}}" autocomplete="off">
+    <fieldset class="plain"{{if not .IsAdmin}} disabled{{end}}>
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "field.name"}}<input name="name" {{.Inv "name"}} value="{{$c.Name}}" required maxlength="64">{{.Err "name"}}</label>
+    <label>{{.T "field.description"}}<input name="description" {{.Inv "description"}} value="{{$c.Description}}">{{.Err "description"}}</label>
+    <fieldset class="palette"><legend>{{.T "channels.color"}}</legend>
+      <label class="swatch-choice" title="{{.T "channels.no_color"}}"><input type="radio" name="color" value=""{{if not $c.Color}} checked{{end}}><span class="swatch none"></span></label>
+      {{range palette}}<label class="swatch-choice" title="{{.}}"><input type="radio" name="color" value="{{.}}"{{if eq . $c.Color}} checked{{end}}><span class="swatch s{{slice . 1}}"></span></label>{{end}}
+      <span class="hint">{{.T "channels.color_hint"}}</span>{{.Err "color"}}
+    </fieldset>
+    <fieldset><legend>{{.T "perimeter.sources"}}</legend>
+      {{range index .Data "SourceChoices"}}<label class="check"><input type="checkbox" name="sources" value="{{.ID}}"{{if .Checked}} checked{{end}}> {{.Name}}</label>{{end}}
+      <span class="hint">{{.T "channels.any"}}</span>
+    </fieldset>
+    <fieldset><legend>Host group</legend>
+      {{template "grouppicker" .}}
+      <span class="hint">{{.T "groups.nested_hint"}} {{.T "channels.any"}}</span>
+    </fieldset>
+    <label>{{.T "field.host_patterns"}}<textarea name="host_patterns" {{.Inv "host_patterns"}} spellcheck="false" rows="2" placeholder="db-*">{{index .Data "Patterns"}}</textarea>{{.Err "host_patterns"}}<span class="hint">{{.T "channels.patterns_hint"}}</span></label>
+    <label>{{.T "field.tags"}}<textarea name="tags" {{.Inv "tags"}} spellcheck="false" rows="3" placeholder="service=mysql">{{index .Data "Tags"}}</textarea>{{.Err "tags"}}<span class="hint">{{.T "channels.tags_hint"}}</span></label>
+    <label>{{.T "perimeter.min_severity"}}
+      <select name="min_severity">{{range $i, $n := (list "Not classified" "Information" "Warning" "Average" "High" "Disaster")}}<option value="{{$i}}"{{if eq $i $r.MinSeverity}} selected{{end}}>{{$n}}</option>{{end}}</select></label>
+    <label>{{.T "field.priority"}}<input name="priority" {{.Inv "priority"}} type="number" min="0" max="1000" value="{{$c.Priority}}">{{.Err "priority"}}<span class="hint">{{.T "channels.priority_hint"}}</span></label>
+    {{.Err "rule"}}<label class="check"><input type="checkbox" name="enabled" value="1"{{if $c.Enabled}} checked{{end}}> {{.T "channels.enabled"}}</label>
+    {{if .IsAdmin}}<div class="actions"><button class="primary">{{if $new}}{{.T "channels.create"}}{{else}}{{.T "action.save"}}{{end}}</button></div>{{end}}
+    </fieldset>
+  </form>
+  {{if and .IsAdmin (not $new)}}
+  <hr>
+  <form autocomplete="off" method="post" action="/admin/channels/{{$c.ID}}/delete" data-confirm="{{.T "channels.delete_confirm"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><button class="danger">{{.T "channels.delete"}}</button>
+  </form>
+  {{end}}
+</section>
+{{if not $new}}
+<section class="card" id="users">
+  <h2>{{.T "channels.assigned"}}</h2>
+  <p class="muted small">{{.T "channels.assigned_hint"}}</p>
+  {{with index .Data "UserChoices"}}
+  <form autocomplete="off" method="post" action="/admin/channels/{{$c.ID}}/users">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="checklist">{{range .}}<label class="check"><input type="checkbox" name="users" value="{{.Username}}"{{if .Checked}} checked{{end}}> {{.Username}} <span class="muted">{{.DisplayName}}</span></label>{{end}}</div>
+    <div class="actions"><button class="primary">{{$.T "action.save"}}</button></div>
+  </form>
+  {{else}}<p class="muted">{{.T "users.none"}}</p>{{end}}
+</section>
+{{end}}
+</div>
+{{end}}

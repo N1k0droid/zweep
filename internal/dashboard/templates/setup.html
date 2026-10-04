@@ -1,0 +1,15 @@
+{{define "title"}}{{.T "setup.title"}}{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{.T "setup.title"}}</h1>
+  <p class="muted">{{.T "setup.hint"}}</p>
+  <form method="post" action="/admin/setup" autocomplete="off">
+    <label>{{.T "field.setup_token"}}<input name="token" {{.Inv "token"}} spellcheck="false" autocapitalize="off" required autofocus>{{.Err "token"}}</label>
+    <label>{{.T "field.username"}}<input name="username" {{.Inv "username"}} spellcheck="false" autocapitalize="off" value="{{index .Data "Username"}}" autocomplete="username" required>{{.Err "username"}}</label>
+    <label>{{.T "field.new_password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password" required>{{.Err "password"}}</label>
+    <label>{{.T "field.confirm"}}<input name="confirm" {{.Inv "confirm"}} type="password" autocomplete="new-password" required>{{.Err "confirm"}}</label>
+    <p class="muted small">{{.T "password.policy"}}</p>
+    <button class="primary">{{.T "setup.submit"}}</button>
+  </form>
+</section>
+{{end}}

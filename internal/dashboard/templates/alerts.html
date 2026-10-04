@@ -1,0 +1,30 @@
+{{define "title"}}{{.T "alerts.tab_open"}}{{end}}
+{{define "content"}}
+<h1>Problems</h1>
+<nav class="subtabs"><a href="/admin/problems">{{.T "alerts.tab_problems"}}</a><a href="/admin/alerts" class="on" aria-current="page">{{.T "alerts.tab_open"}}</a><a href="/admin/outside">{{.T "outside.title"}}</a></nav>
+<p class="muted small">{{.T "alerts.hint"}} {{if index .Data "AutoClose"}}{{.T "alerts.autoclose_on" (index .Data "After")}}{{else}}{{.T "alerts.autoclose_off"}}{{end}}</p>
+{{with index .Data "Rows"}}
+<table>
+  <thead><tr><th>Severity</th><th>Alert</th><th>{{$.T "col.source"}}</th><th>{{$.T "problems.since"}}</th><th>{{$.T "problems.duration"}}</th><th>{{$.T "alerts.operators"}}</th><th>{{$.T "alerts.zabbix"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><span translate="no" class="sev sev{{.Severity}}">{{sevName .Severity}}</span></td>
+    <td><b>{{.Title}}</b></td>
+    <td>{{.Source}}</td>
+    <td class="nowrap">{{.Since}}</td>
+    <td class="nowrap">{{.Duration}}</td>
+    <td>{{.Users}}</td>
+    <td class="nowrap">{{if .ZabbixOpen}}<span class="pill err">{{$.T "alerts.st_open"}}</span>{{else}}<span class="pill muted">{{$.T (print "alerts.st_" .ZabbixStatus)}}</span>{{end}}{{if .Orphan}} <span class="pill warn">{{$.T "alerts.orphan"}}</span>{{end}}</td>
+    <td class="nowrap">
+      <form method="post" action="/admin/alerts/close" class="inline">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="sid" value="{{.SID}}">
+        <button class="small danger" data-confirm="{{if .ZabbixOpen}}{{$.T "alerts.close_open_confirm"}}{{else}}{{$.T "alerts.close_confirm"}}{{end}}">{{$.T "alerts.close"}}</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "alerts.none"}}</p>{{end}}
+{{end}}

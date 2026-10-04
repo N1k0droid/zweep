@@ -1,0 +1,38 @@
+{{define "title"}}{{(index .Data "P").Name}}{{end}}
+{{define "content"}}
+{{$p := index .Data "P"}}
+<a class="back" href="/admin/problems">← Problems</a>
+<div class="head">
+  <h1><span translate="no" class="sev sev{{$p.Severity}}">{{index (list "Not classified" "Information" "Warning" "Average" "High" "Disaster") $p.Severity}}</span> {{$p.Name}}</h1>
+  {{with $p.ZabbixURL}}<a class="button" href="{{.}}" rel="noreferrer" target="_blank">{{$.T "problems.open_zabbix"}}</a>{{end}}
+</div>
+<div class="cols">
+<section class="card">
+  <table class="kv">
+    <tr><th>Host</th><td>{{$p.Hosts}}</td></tr>
+    <tr><th>Host group</th><td>{{range $i, $g := $p.Groups}}{{if $i}}, {{end}}{{$g}}{{end}}</td></tr>
+    <tr><th>{{.T "col.source"}}</th><td>{{$p.Source}} <span class="muted">· event {{$p.EventID}}</span></td></tr>
+    <tr><th>{{.T "problems.since"}}</th><td>{{$p.Since}} <span class="muted">({{$p.Duration}})</span></td></tr>
+    <tr><th>{{.T "col.state"}}</th><td>{{if eq $p.Status "resolved"}}<span class="pill ok">Resolved</span>{{else if $p.Acknowledged}}<span class="pill muted">Acknowledged</span>{{else}}<span class="pill err">Unacknowledged</span>{{end}}{{if $p.Suppressed}} <span class="pill muted">Suppressed</span>{{end}}</td></tr>
+    {{if $p.Tags}}<tr><th>Tag</th><td>{{range $p.Tags}}<span class="tag">{{.Tag}}{{if .Value}}: {{.Value}}{{end}}</span> {{end}}</td></tr>{{end}}
+  </table>
+</section>
+<section class="card">
+  <h2>{{.T "problems.history"}}</h2>
+  {{with index .Data "Acks"}}
+  <ul class="timeline">
+    {{range .}}<li><span class="muted small">{{.When}}</span> <b>{{.Who}}</b> {{range .Actions}}<span class="pill muted">{{.}}</span> {{end}}{{with .Message}}<div class="msg">{{.}}</div>{{end}}</li>{{end}}
+  </ul>
+  {{else}}<p class="muted">{{.T "problems.no_history"}}</p>{{end}}
+</section>
+<section class="card span2">
+  <h2>{{.T "problems.notified"}}</h2>
+  {{with index .Data "Deliveries"}}
+  <table>
+    <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.kind"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+    <tbody>{{range .}}<tr><td class="nowrap">{{ts .CreatedAt}}</td><td>{{.Username}} <span class="muted small">{{.Device}}</span></td><td>{{$.T (print "kind." .Kind)}}</td><td><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span></td></tr>{{end}}</tbody>
+  </table>
+  {{else}}<p class="muted">{{.T "problems.not_notified"}}</p>{{end}}
+</section>
+</div>
+{{end}}

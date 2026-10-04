@@ -1,0 +1,26 @@
+{{define "title"}}{{.T "nav.groups"}}{{end}}
+{{define "content"}}
+<div class="head">
+  <h1>{{.T "nav.users"}}</h1>
+  <a class="button primary" href="/admin/groups/new">{{.T "groups.new"}}</a>
+</div>
+<nav class="subtabs"><a href="/admin/users">{{.T "nav.users"}}</a><a href="/admin/groups" class="on" aria-current="page">{{.T "nav.groups"}}</a></nav>
+<p class="muted small">{{.T "groups.hint"}}</p>
+{{with index .Data "Groups"}}
+<table class="clickable">
+  <thead><tr><th>{{$.T "groups.name"}}</th><th class="num">{{$.T "groups.members"}}</th><th>Host group</th><th>Severity</th><th>{{$.T "groups.rights"}}</th><th>{{$.T "nav.channels"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><a href="/admin/groups/{{.ID}}"><b>{{.Name}}</b></a>{{with .Description}}<br><span class="small muted">{{.}}</span>{{end}}</td>
+    <td class="num">{{len .Members}}</td>
+    <td>{{range $i, $g := .Hostgroups}}{{if $i}}, {{end}}{{$g}}{{else}}<span class="muted">—</span>{{end}}{{if .Sources}}<br><span class="small muted">{{range $i, $s := .Sources}}{{if $i}}, {{end}}{{$s}}{{end}}</span>{{end}}</td>
+    <td class="nowrap">{{range .Severities}}<span translate="no" class="sev sev{{.}} mini" title="{{sevName .}}">{{slice (sevName .) 0 1}}</span>{{end}}</td>
+    <td class="nowrap">{{if .CanAck}}<span class="pill ok">Ack</span>{{end}}{{if .CanClose}} <span class="pill warn">{{$.T "groups.close_short"}}</span>{{end}}</td>
+    <td>{{len .Channels}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "groups.none"}}</p>{{end}}
+{{end}}

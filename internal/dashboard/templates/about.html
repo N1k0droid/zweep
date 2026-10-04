@@ -1,0 +1,19 @@
+{{define "title"}}{{.T "nav.about"}}{{end}}
+{{define "content"}}
+<h1>{{.T "nav.about"}}</h1>
+<div class="cols">
+<section class="card">
+  <h2>Zweep {{.Version}}</h2>
+  <p>{{.T "about.intro"}}</p>
+  <h3>{{.T "about.author"}}</h3>
+  <p>{{.T "about.author_text"}}<br><strong>Nicola Carmelo Gurgone</strong><br><a href="https://github.com/N1k0droid" rel="noreferrer">github.com/N1k0droid</a></p>
+  <p>{{.T "about.star"}} <a href="https://github.com/N1k0droid/zweep" rel="noreferrer">github.com/N1k0droid/zweep</a></p>
+</section>
+<section class="card">
+  <h2>{{.T "about.license"}}</h2>
+  <p>{{.T "about.license_text"}} <a href="https://github.com/N1k0droid/zweep" rel="noreferrer">{{.T "footer.source"}}</a></p>
+  <p class="muted small">{{.T "about.third_party"}}</p>
+  <p class="muted small">{{.T "footer.trademark"}}</p>
+</section>
+</div>
+{{end}}

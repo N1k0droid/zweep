@@ -1,0 +1,60 @@
+{{define "title"}}Test{{end}}
+{{define "content"}}
+<h1>Test</h1>
+<p class="muted small">{{.T "test.hint"}}</p>
+{{$d := .Data}}
+<section class="card form-card">
+  <form method="post" action="/admin/test" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>{{.T "test.kind"}}
+      <select name="kind" {{.Inv "kind"}}>
+        <option value="test"{{if eq (index $d "Kind") "test"}} selected{{end}}>{{.T "test.kind_test"}}</option>
+        <option value="problem"{{if eq (index $d "Kind") "problem"}} selected{{end}}>{{.T "test.kind_problem"}}</option>
+      </select>{{.Err "kind"}}</label>
+    <label>{{.T "test.to"}}
+      <select name="to" {{.Inv "to"}} data-show-for>
+        <option value="user"{{if eq (index $d "To") "user"}} selected{{end}}>{{.T "test.to_user"}}</option>
+        <option value="channel"{{if eq (index $d "To") "channel"}} selected{{end}}>{{.T "test.to_channel"}}</option>
+        <option value="all"{{if eq (index $d "To") "all"}} selected{{end}}>{{.T "test.to_all"}}</option>
+      </select>{{.Err "to"}}</label>
+    <label data-for="to:user">{{.T "test.operator"}}
+      <select name="user" {{.Inv "user"}}>{{range index $d "Operators"}}<option value="{{.Username}}"{{if eq .Username (index $d "User")}} selected{{end}}>{{.Username}}{{if .DisplayName}} — {{.DisplayName}}{{end}}</option>{{end}}</select>{{.Err "user"}}</label>
+    <label data-for="to:channel">{{.T "test.group"}}
+      <select name="group" {{.Inv "group"}}>{{range index $d "Channels"}}{{if eq .Kind "custom"}}<option value="{{.ID}}"{{if eq .ID (index $d "Group")}} selected{{end}}>{{.Name}} ({{len .Users}})</option>{{end}}{{end}}</select>{{.Err "group"}}</label>
+    <label>{{.T "test.channel"}}
+      <select name="channel" {{.Inv "channel"}}>{{range index $d "Channels"}}<option value="{{.ID}}"{{if eq .ID (index $d "Channel")}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{.Err "channel"}}
+      <span class="hint">{{.T "test.channel_hint"}}</span></label>
+    <label>{{.T "test.severity"}}
+      <select name="severity">{{$s := index $d "Severity"}}
+        <option value="-1">{{.T "test.severity_none"}}</option>
+        {{range $n := list 0 1 2 3 4 5}}<option value="{{$n}}"{{if eq (print $n) $s}} selected{{end}}>{{sevName $n}}</option>{{end}}
+      </select></label>
+    <label>{{.T "test.title"}}<input name="title" {{.Inv "title"}} maxlength="200" value="{{index $d "Title"}}" required>{{.Err "title"}}</label>
+    <label>{{.T "test.text"}}<textarea name="text" {{.Inv "text"}} maxlength="1000" rows="3">{{index $d "Text"}}</textarea>{{.Err "text"}}</label>
+    <div class="actions"><button class="primary" data-confirm="{{.T "test.send_confirm"}}">{{.T "test.send"}}</button></div>
+  </form>
+</section>
+<h2>{{.T "test.open"}}</h2>
+{{with index .Data "Open"}}
+<table>
+  <thead><tr><th>Severity</th><th>{{$.T "test.title"}}</th><th>{{$.T "problems.since"}}</th><th>{{$.T "alerts.operators"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><span translate="no" class="sev sev{{.Severity}}">{{sevName .Severity}}</span></td>
+    <td><b>{{.Title}}</b></td>
+    <td class="nowrap">{{.Since}}</td>
+    <td>{{.Users}}</td>
+    <td>
+      <form method="post" action="/admin/test/close" class="inline" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="sid" value="{{.SID}}">
+        <input name="text" maxlength="1000" placeholder="{{$.T "test.resolve_text"}}…" aria-label="{{$.T "test.resolve_text"}}">
+        <button class="small" data-confirm="{{$.T "test.resolve_confirm"}}">{{$.T "test.resolve"}}</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">{{.T "test.open_none"}}</p>{{end}}
+{{end}}

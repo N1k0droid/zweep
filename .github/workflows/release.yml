@@ -1,0 +1,87 @@
+name: release
+
+# Publishing a GitHub release "vX.Y.Z" with the signed APK attached builds the multi-arch image,
+# pushes it to GHCR and to the Docker Hub mirror, and attaches the SBOM and the checksums.
+# Repository secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (Docker Hub access token, read & write).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+# Actions are pinned by commit SHA (supply chain)
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # attach SBOM and checksums to the release
+      packages: write   # push to ghcr.io
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      GH_TOKEN: ${{ github.token }}
+      # SHA-256 of the certificate of the official app (public): an APK signed with another key could
+      # not update the installed app. Forks that sign with their own key change it.
+      APK_CERT: 2b9f8a65c4533264922f3ed0b601cd8eab4b04bfa58fc77f3505c691cf61c45b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The image offers the app to the phones: exactly one signed APK must be attached to the release
+      - name: APK of the release
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --dir apk
+          test "$(ls apk/*.apk | wc -l)" -eq 1 || { echo "attach exactly one APK to the release"; exit 1; }
+          ls -l apk
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Zweep package, version of the tag, official signature
+      - name: Check the APK
+        run: go run ./tools/apkcheck -version "$TAG" -cert "$APK_CERT" apk/*.apk
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ghcr.io/n1k0droid/zweep
+            docker.io/n1k0droid/zweep
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          push: true
+
+      - name: SBOM and checksums
+        run: |
+          make sbom
+          cp apk/*.apk dist/
+          cd dist && sha256sum *.apk zweep-server.sbom.json > SHA256SUMS && cat SHA256SUMS
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber zweep-server.sbom.json SHA256SUMS
