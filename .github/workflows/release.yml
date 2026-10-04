@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # Zweep package, version of the tag, official signature
+      # Zweep package, a version that fits the tag (a server-only patch may ship the previous app), official signature
       - name: Check the APK
         run: go run ./tools/apkcheck -version "$TAG" -cert "$APK_CERT" apk/*.apk
 

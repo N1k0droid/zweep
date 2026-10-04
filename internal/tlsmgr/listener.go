@@ -85,6 +85,10 @@ func (l *sniffListener) Accept() (net.Conn, error) {
 	case <-l.done:
 		l.mu.Lock()
 		defer l.mu.Unlock()
+		if l.err == nil {
+			// Closed by Close(): never (nil, nil), which http.Server would serve as a connection
+			return nil, net.ErrClosed
+		}
 		return nil, l.err
 	}
 }

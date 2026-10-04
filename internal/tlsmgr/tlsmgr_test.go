@@ -323,3 +323,15 @@ func TestPort80(t *testing.T) {
 	require.Equal(t, http.StatusMovedPermanently, code)
 	require.True(t, strings.HasPrefix(res.Header.Get("Location"), "https://127.0.0.1:8443/admin/"))
 }
+
+// After Close, Accept reports net.ErrClosed: a (nil, nil) would make http.Server serve a nil connection
+func TestListenerClosedAccept(t *testing.T) {
+	m, _ := newManager(t, []string{"127.0.0.1"})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.Nil(t, err)
+	l := Listener(ln, m)
+	require.Nil(t, l.Close())
+	c, err := l.Accept()
+	require.Nil(t, c)
+	require.ErrorIs(t, err, net.ErrClosed)
+}

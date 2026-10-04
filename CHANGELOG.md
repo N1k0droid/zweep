@@ -2,6 +2,15 @@
 
 All notable changes to Zweep are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.0.2 — 2026-10-05
+
+Server only; the app stays 1.0.1.
+
+- Fixed: closing the listener that serves HTTP and HTTPS on the same port could make the HTTP server
+  panic (a nil connection after Close); seen only at shutdown and in a test.
+- Release workflow: a server-only patch release may ship the app of an earlier patch (same
+  major.minor, not newer); package and official signature are still checked.
+
 ## 1.0.1 — 2026-10-04
 
 - Notification mode (Settings → General): *multi* (default) notifies again when Zabbix calls Zweep

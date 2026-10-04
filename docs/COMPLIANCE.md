@@ -1,6 +1,6 @@
 # Zweep for Zabbix — security and regulatory compliance
 
-Status: version 1.0.1 (2026-10-04). This document maps the design of the Zweep server to NIS2,
+Status: version 1.0.2 (2026-10-05). This document maps the design of the Zweep server to NIS2,
 ISO/IEC 27001, the Cyber Resilience Act and the AI Act. It is maintained with the code: a change that
 affects a control updates this file in the same commit.
 

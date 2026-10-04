@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Command apkcheck verifies the APK attached to a release before it goes into the image: the Zweep
-// package, the version name of the release tag, and the signing certificate of the official app.
+// package, a version that fits the release tag, and the signing certificate of the official app.
+// A server-only patch release may ship the app of an earlier patch: same major.minor, not newer.
 //
 //	go run ./tools/apkcheck -version 1.0.0 -cert <sha256 of the certificate> apk/zweep-1.0.0.apk
 //
@@ -13,13 +14,25 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/n1k0droid/zweep/internal/apk"
 )
 
+// fits reports whether an app version can ship in a release: same major.minor, patch not newer
+func fits(app, release string) bool {
+	a, r := strings.Split(app, "."), strings.Split(release, ".")
+	if len(a) != 3 || len(r) != 3 || a[0] != r[0] || a[1] != r[1] {
+		return false
+	}
+	ap, err1 := strconv.Atoi(a[2])
+	rp, err2 := strconv.Atoi(r[2])
+	return err1 == nil && err2 == nil && ap <= rp
+}
+
 func main() {
-	version := flag.String("version", "", "expected version name (e.g. 1.0.0; a leading v is ignored)")
+	version := flag.String("version", "", "version of the release (e.g. 1.0.2; a leading v is ignored): the APK must be the same major.minor and not newer")
 	cert := flag.String("cert", "", "expected SHA-256 of the signing certificate (hex, colons allowed)")
 	flag.Parse()
 	if flag.NArg() != 1 {
@@ -37,8 +50,8 @@ func main() {
 	if info.Package != apk.AppPackage {
 		errs = append(errs, "not the Zweep app: package "+info.Package)
 	}
-	if v := strings.TrimPrefix(*version, "v"); v != "" && info.VersionName != v {
-		errs = append(errs, fmt.Sprintf("version %s, the release is %s", info.VersionName, v))
+	if v := strings.TrimPrefix(*version, "v"); v != "" && !fits(info.VersionName, v) {
+		errs = append(errs, fmt.Sprintf("version %s does not fit the release %s (same major.minor, not newer)", info.VersionName, v))
 	}
 	if info.CertSHA256 == "" {
 		errs = append(errs, "the APK is not signed")
