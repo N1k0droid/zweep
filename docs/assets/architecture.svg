@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 330" width="1060" height="330" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>How Zweep works</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <style>
+      .box { fill: #21262d; stroke: #8b949e; stroke-width: 1.5; }
+      .name { fill: #f0f6fc; font-size: 16px; font-weight: 600; text-anchor: middle; }
+      .sub { fill: #c9d1d9; font-size: 13px; text-anchor: middle; }
+      .flow { stroke: #8b949e; stroke-width: 1.5; fill: none; }
+      .label { fill: #8b949e; font-size: 13px; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Zabbix -->
+  <rect class="box" x="20" y="50" width="200" height="80" rx="8"/>
+  <text class="name" x="120" y="85">Zabbix 7.0+</text>
+  <text class="sub" x="120" y="107">actions and escalation</text>
+
+  <!-- Zweep server -->
+  <rect class="box" x="440" y="50" width="200" height="80" rx="8"/>
+  <text class="name" x="540" y="85">Zweep server</text>
+  <text class="sub" x="540" y="107">one Go container</text>
+
+  <!-- Android app -->
+  <rect class="box" x="840" y="50" width="200" height="80" rx="8"/>
+  <text class="name" x="940" y="85">Android app</text>
+  <text class="sub" x="940" y="107">operators' phones</text>
+
+  <!-- Dashboard -->
+  <rect class="box" x="380" y="240" width="140" height="64" rx="8"/>
+  <text class="name" x="450" y="268">Dashboard</text>
+  <text class="sub" x="450" y="289">admin port</text>
+
+  <!-- PostgreSQL (cylinder) -->
+  <path class="box" d="M570,252 a60,12 0 0,1 120,0 v40 a60,12 0 0,1 -120,0 z"/>
+  <path class="flow" d="M570,252 a60,12 0 0,0 120,0"/>
+  <text class="name" x="630" y="284">PostgreSQL</text>
+
+  <!-- Zabbix -> Zweep: webhook (label above), Zweep -> Zabbix: API (label below) -->
+  <line class="flow" x1="222" y1="78" x2="438" y2="78" marker-end="url(#a)"/>
+  <text class="label" x="330" y="68">media type webhook</text>
+  <line class="flow" x1="438" y1="104" x2="222" y2="104" marker-end="url(#a)"/>
+  <text class="label" x="330" y="124">API: problems,</text>
+  <text class="label" x="330" y="140">acknowledgements</text>
+
+  <!-- Zweep -> app: WebSocket (label above), app -> Zweep: receipts and acks (label below) -->
+  <line class="flow" x1="642" y1="78" x2="838" y2="78" marker-end="url(#a)"/>
+  <text class="label" x="740" y="52">WebSocket:</text>
+  <text class="label" x="740" y="68">alarms, problem list</text>
+  <line class="flow" x1="838" y1="104" x2="642" y2="104" marker-end="url(#a)"/>
+  <text class="label" x="740" y="124">receipts,</text>
+  <text class="label" x="740" y="140">acknowledgements</text>
+
+  <!-- Zweep <-> Dashboard and PostgreSQL: vertical, labels at the side -->
+  <line class="flow" x1="480" y1="132" x2="480" y2="238" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="label" x="474" y="190" text-anchor="end" style="text-anchor:end">users, settings</text>
+  <line class="flow" x1="600" y1="132" x2="600" y2="238" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="label" x="606" y="190" style="text-anchor:start">alarms, state</text>
+</svg>

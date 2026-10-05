@@ -35,10 +35,12 @@ configured Zabbix API endpoints.
   delivered could qualify as a safety component in the management and operation of critical digital
   infrastructure (Annex III, point 2: high-risk). Any future AI feature (e.g. summaries) stays outside
   the delivery path and requires a documented AI Act assessment before it is built.
-- **AI-assisted development.** Parts of the code were written with an AI coding assistant. This does
-  not make the product an AI system; it is handled as a development-process risk: every change is
-  reviewed by a person, covered by automated tests, static analysis (gosec), vulnerability scanning
-  (govulncheck) and the security regression suite (`internal/server/security_test.go`).
+- **AI-assisted development.** The code was written with the help of an AI coding assistant, under
+  the direction of the author, who designed the features and tested every release on real devices and
+  Zabbix servers. This does not make the product an AI system; it is handled as a development-process
+  risk: the code is covered by automated tests, static analysis (gosec), vulnerability scanning
+  (govulncheck) and the security regression suite (`internal/server/security_test.go`), run by the CI
+  at every change.
 
 ## 3. NIS2 (Directive (EU) 2022/2555; Italy: D.Lgs. 138/2024)
 

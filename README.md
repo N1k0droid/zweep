@@ -1,7 +1,8 @@
-<h2 align="center">
-  <img src="docs/assets/zweep-logo.svg" alt="Zweep" width="128" align="middle">
-  &nbsp;Zweep for Zabbix &nbsp;·&nbsp; <em>Your Zabbix alert radar</em>
-</h2>
+<p align="center"><img src="docs/assets/banner.svg" alt="Zweep for Zabbix · Your Zabbix alert radar" width="560"></p>
+
+---
+
+<br>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL-3.0-only" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue"></a>
@@ -10,43 +11,49 @@
   <img alt="Docker amd64 | arm64" src="https://img.shields.io/badge/docker-amd64%20%7C%20arm64-2496ed">
 </p>
 
-Zweep delivers Zabbix alarms to an Android app, quickly and reliably, and lets the operator see the
-open problems and acknowledge them from the phone. It is **one step of the escalation chain** you
-already define in Zabbix Actions:
+Zweep is a **Zabbix media type with its own server and Android app**. Zabbix sends alarms to the
+Zweep media type as it does with e-mail or SMS; the media type hands them to your self-hosted Zweep
+server, which delivers them to the Zweep app on the operators' phones: a notification with the sound of
+its severity, the open problems of the operator's perimeter, and acknowledgements from the phone,
+recorded in Zabbix.
 
-```
-Problem ──► e-mail ──► Zweep app (after 5 min) ──► SMS (after 15 min)
-```
+You use it like any other media type: alone, together with e-mail, or as one step of an escalation in
+Zabbix Actions. Who is notified, and when, stays in Zabbix.
 
-**Zweep never absorbs an alarm.** Zweep answers the Zabbix media type only after the alarm is safely
-stored. If Zweep is down or cannot deliver, the media type fails, Zabbix retries it and the escalation
-goes on with the next step.
+**Delivery you can rely on.** Zweep answers the media type only after the alarm is stored, the phone
+confirms every alarm it receives, and after a network loss it receives what it missed, once and in
+order. If Zweep cannot accept an alarm, the media type fails like any other: Zabbix retries it, and an
+escalation goes on with its next step.
 
 ## Why Zweep?
 
-| | What it gives | What it lacks for on-call |
-|---|---|---|
-| E-mail / SMS from Zabbix | built in, no extra software | no problem list, no acknowledgement from the phone; SMS costs, e-mail is easy to miss |
-| Telegram, Slack, generic push | quick to set up | alarms leave your network through a third party; delivery is not confirmed back to Zabbix, so a lost message does not trigger the next escalation step |
-| Mobile apps that log in to Zabbix | full Zabbix on the phone | every phone holds Zabbix credentials and needs to reach the Zabbix frontend |
-| Cloud incident platforms | rich on-call features | subscription, alarm data in the cloud, a second place where escalations are defined |
+- **Acknowledge from the phone**: take charge of a problem with a message, recorded in Zabbix;
+  as usual, acknowledging stops the escalation.
+- **A quick look, not a second frontend**: the open problems of your perimeter with the Recent,
+  Problems and History views, filters and search, to correlate on the fly. The full analysis stays
+  in the Zabbix frontend.
+- **No Zabbix or domain credentials on the phone**: operators activate the app with a QR code from
+  the Zweep dashboard (or a Zweep account, separate from Zabbix and from the domain); the app never
+  connects to Zabbix. In Zabbix they need a user only as the
+  recipient of the media type, without frontend access.
+- **On-premises, nothing in between**: the app connects only to your Zweep server, next to Zabbix:
+  no cloud, no third-party push service (not even Google's).
+- **Works without internet**: on the company network alone (Wi-Fi, VPN) alarms keep arriving even
+  when the internet connection is down, which is often exactly when they matter. Services in the cloud
+  and push notifications need the internet.
+- **No costs**: no subscription, no per-message fees, no SMS gateway. Free software.
+- **An app only for monitoring**: alarms do not mix with the chats of Telegram, WhatsApp or Teams,
+  where they are easily muted or ignored; every severity and channel has its own sound.
 
-Zweep is **self-hosted** and **made for Zabbix escalations**: the phone talks only to your Zweep server
-and holds no Zabbix credentials; every alarm is stored before Zabbix is told it was sent, and confirmed
-by the phone; when Zweep cannot deliver, the media type fails and Zabbix goes on with the next step
-(SMS, call). Escalation stays in Zabbix Actions, where you already manage it.
+| | What it gives | Limits for alerting |
+|---|---|---|
+| E-mail / SMS from Zabbix | built in | no problem list, no acknowledgement from the phone; SMS costs, e-mail is easy to miss |
+| Telegram, WhatsApp, Teams, Slack | quick to set up | alarms mixed with chats; they need the internet and leave your network through a third party; delivery is not confirmed back to Zabbix |
+| Cloud incident platforms | rich on-call features | subscription, alarm data in the cloud, a second place where escalations are defined |
 
 ## How it works
 
-```mermaid
-flowchart LR
-    Z["Zabbix 7.0+<br/>actions and escalation"] -- "media type webhook" --> S["Zweep server<br/>one Go container"]
-    S -- "API: problems, acknowledgements" --> Z
-    S <--> DB[("PostgreSQL")]
-    S -- "WebSocket: alarms, problem list" --> P["Android app"]
-    P -- "receipts, acknowledgements" --> S
-    A["Dashboard<br/>(admin port)"] --- S
-```
+<p align="center"><img src="docs/assets/architecture.svg" alt="Zabbix sends alarms to the Zweep server (media type webhook) and is read through its API; the server delivers alarms and the problem list to the Android app over a WebSocket and receives receipts and acknowledgements; PostgreSQL stores the state; the dashboard runs on the admin port." width="100%"></p>
 
 ## Features
 
@@ -177,6 +184,8 @@ Please report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 Zweep is designed and developed by **[N1k0droid](https://github.com/N1k0droid)**.
 If Zweep is useful to you, a ⭐ on this repository and a follow help the project grow.
+
+Developed with the help of an AI coding assistant: see [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
 Zweep is free software under the **GNU Affero General Public License v3.0 only** ([LICENSE](LICENSE),
 SPDX `AGPL-3.0-only`). If you run a modified Zweep for users over a network, you must offer them the

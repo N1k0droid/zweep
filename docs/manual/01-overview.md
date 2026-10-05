@@ -2,27 +2,52 @@
 
 ## 1.1 What Zweep is
 
-Zweep delivers Zabbix alarms to an Android app. It is meant to be **one step of an escalation chain**
-that you define in Zabbix, for example:
+Zweep is a **Zabbix media type with its own server and Android app**. In Zabbix it is a media type like
+e-mail or SMS: you assign it to users and use it in Actions. The media type sends each alarm to your
+Zweep server, which delivers it to the Zweep app on the phones of that user: a notification with the
+sound of its severity, the list of open problems, and acknowledgements made from the phone, recorded in
+Zabbix.
+
+You use it like any other media type: as the only channel for some users, together with e-mail, or as
+one step of an escalation, for example:
 
 ```
 Problem starts ──► e-mail to the on-call team ──► Zweep app (after 5 min) ──► SMS (after 15 min)
 ```
 
-Zabbix decides **who** is notified and **when**; Zweep only makes sure that, when Zabbix hands it an
-alarm, the alarm reaches the phones of that person reliably and quickly, and that the person can see
-the open problems and acknowledge them from the phone.
+Zabbix decides **who** is notified and **when**; Zweep makes sure that, when Zabbix hands it an alarm,
+the alarm reaches the phones of that person reliably and quickly.
 
 Three principles guide the whole design:
 
 1. **Zweep never absorbs an alarm.** When Zabbix calls the Zweep media type, Zweep answers "sent" only
    after the alarm is safely stored in its database. If Zweep is down, overloaded or misconfigured,
-   the media type fails, Zabbix marks the alert as failed, retries it, and **the escalation continues**
-   with the next step (SMS, phone call…). A broken Zweep never silences an alarm.
+   the media type fails, Zabbix marks the alert as failed and retries it, and an escalation goes on
+   with its next step (e-mail, SMS…). A broken Zweep never silences an alarm.
 2. **Escalation stays in Zabbix.** Zweep has no escalation rules of its own. Everything about who and
    when is configured in Zabbix *Actions*, where your team already manages it.
 3. **The phone talks only to Zweep.** The app never connects to Zabbix and holds no Zabbix
    credentials. Zweep reads Zabbix through a dedicated service user with a restricted role.
+
+### Why a dedicated media type
+
+- **Acknowledge from the phone**: take charge of a problem with a message, recorded in Zabbix;
+  as usual, acknowledging stops the escalation.
+- **A quick look, not a second frontend**: the open problems of your perimeter with the Recent,
+  Problems and History views, filters and search, to correlate on the fly. The full analysis stays
+  in the Zabbix frontend.
+- **No Zabbix or domain credentials on the phone**: operators activate the app with a QR code from
+  the Zweep dashboard (or a Zweep account, separate from Zabbix and from the domain); the app never
+  connects to Zabbix. In Zabbix they need a user only as the
+  recipient of the media type, without frontend access.
+- **On-premises, nothing in between**: the app connects only to your Zweep server, next to Zabbix:
+  no cloud, no third-party push service (not even Google's).
+- **Works without internet**: on the company network alone (Wi-Fi, VPN) alarms keep arriving even
+  when the internet connection is down, which is often exactly when they matter. Services in the cloud
+  and push notifications need the internet.
+- **No costs**: no subscription, no per-message fees, no SMS gateway. Free software.
+- **An app only for monitoring**: alarms do not mix with the chats of Telegram, WhatsApp or Teams,
+  where they are easily muted or ignored; every severity and channel has its own sound.
 
 ## 1.2 How an alarm travels
 

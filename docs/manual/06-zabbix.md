@@ -160,7 +160,7 @@ Notes:
 - Zabbix does not notify the author of an update about their own update: the author sees it anyway in
   the app, from the problem list or immediately when the acknowledge was made in the app.
 - **Zweep only**, without escalation: it works the same way (one operation via Zweep). You lose the
-  safety net, so use it only where an SMS or a phone call is not needed.
+  safety net, so use it only where an SMS or another channel is not needed.
 - **Zweep in more steps.** An action may send the same problem via Zweep more than once: a step range
   such as `2 – 0`, or a first step to a small group and a later one to the whole IT department. Users
   reached for the first time are always notified. For users already notified, the **notification
@@ -270,7 +270,7 @@ picker, with the source names.
 - [ ] `server_url` is `https://` and Zabbix trusts the certificate (or `allow_plaintext=true` only in lab)
 - [ ] Message templates present in the media type
 - [ ] Each operator: Zweep user + Zabbix media *Zweep* with *Send to* = username
-- [ ] Action: Zweep as one step, with a next step (SMS, call); recovery and update operations via Zweep
+- [ ] Action: Zweep as one step, with a next step (e-mail, SMS); recovery and update operations via Zweep
 - [ ] A separate action for the health of Zweep, not via Zweep
 - [ ] Service user with role *User*, allow-list of methods, Read permissions, token with expiry
 - [ ] Source API verified, no warnings
