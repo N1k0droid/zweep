@@ -55,13 +55,6 @@ escalation goes on with its next step.
 
 <p align="center"><img src="docs/assets/architecture.svg" alt="Zabbix sends alarms to the Zweep server (media type webhook) and is read through its API; the server delivers alarms and the problem list to the Android app over a WebSocket and receives receipts and acknowledgements; PostgreSQL stores the state; the dashboard runs on the admin port." width="100%"></p>
 
-<p align="center">
-  <img src="docs/assets/screenshots/app-alerts.png" alt="The Alerts tab of the app: alarms with severity, host, source and state" width="30%">
-  <img src="docs/assets/screenshots/app-problems.png" alt="The Problems tab: open problems in Zabbix within the operator's perimeter" width="30%">
-  <img src="docs/assets/screenshots/app-detail.png" alt="The detail of a problem: host, tags, history and acknowledgement" width="30%">
-</p>
-<p align="center"><img src="docs/assets/screenshots/dashboard-status.png" alt="The Status page of the dashboard: warnings, counters, Zabbix sources, backup and HTTPS" width="100%"></p>
-
 ## Features
 
 - **Reliable delivery**: every alarm is stored, numbered and confirmed by the phone; after a network
@@ -81,6 +74,15 @@ escalation goes on with its next step.
 - **Small and hardened**: one Go binary in a distroless container, non-root, read-only; PostgreSQL is
   the only dependency. Metrics for Prometheus and Zabbix, encrypted daily backups, SBOM.
 - English and Italian.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/screenshots/app-alerts.png" alt="The Alerts tab of the app: alarms with severity, host, source and state" width="30%">
+  <img src="docs/assets/screenshots/app-problems.png" alt="The Problems tab: open problems in Zabbix within the operator's perimeter" width="30%">
+  <img src="docs/assets/screenshots/app-detail.png" alt="The detail of a problem: host, tags, history and acknowledgement" width="30%">
+</p>
+<p align="center"><img src="docs/assets/screenshots/dashboard-status.png" alt="The Status page of the dashboard: warnings, counters, Zabbix sources, backup and HTTPS" width="100%"></p>
 
 ## Production deployment
 
