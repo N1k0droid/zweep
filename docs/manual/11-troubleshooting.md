@@ -29,7 +29,12 @@ Work along the path of the alarm: **Zabbix → Zweep → phone**. At each hop th
    - battery restrictions: *Settings → Permissions*, the vendor guide, Samsung *Sleeping apps*;
    - the app was closed with **Quit app**;
    - the certificate changed in a way the phone does not accept (chapter 5.9);
-   - the device was revoked (the app says *Access revoked*).
+   - the device was revoked (the app says *Access revoked*);
+   - *Access revoked* right after an activation that succeeded, while **Devices** shows the phone as
+     *never connected*: the connection of the app does not reach this server. Something in between
+     (NAT, port forwarding, a proxy) sends the activation and the connection to different places, or
+     refuses WebSocket. Check that the same address and port reach Zweep for both, from the network
+     the phone is on.
 3. Check from the phone's browser that `https://<server>/v1/health` opens (it answers
    `{"healthy":true}`; a certificate warning there is expected with a self-signed certificate).
 4. Firewall or proxy closing idle connections: lower `ZWEEP_KEEPALIVE` (e.g. `30s`), or raise the idle
@@ -80,9 +85,30 @@ delay come from outside Zweep.
 | *Too many attempts* | 15-minute ban after 10 failures in 10 minutes from that address; wait, or restart Zweep (bans are in memory) |
 | Logged out often | sessions end after 30 minutes without activity |
 | Everything blocked behind a proxy | `ZWEEP_TRUSTED_PROXIES` missing: every client looks like the proxy and shares its limits |
-| Lost authenticator (two-step verification) | the **superadmin** resets it from **Users → name**; for the superadmin himself: `zweep-server admin reset-totp -username NAME` on the server |
+| Lost authenticator (two-step verification) | the **superadmin** resets it from **Users → name**; for the superadmin's own account: `zweep-server admin reset-totp -username NAME` on the server |
 | *Create a second admin first* on My account | two-step verification needs another active admin |
 | Admin API answers `403 totp_account` | the account has two-step verification: use an automation account without it |
+
+### From which address does a user connect?
+
+Addresses are the real ones only if `ZWEEP_TRUSTED_PROXIES` lists your reverse proxy; otherwise every
+client shows the address of the proxy.
+
+| Who | Where |
+|---|---|
+| A dashboard account | **Audit**: every login and change with its address, kept in the database |
+| Any request (app, Zabbix, dashboard) | **Logging**, or the log of the server: each `HTTP request` line has `ip`, `path` and `status`; filter by address or path (`/v1/stream` is the connection of the app, `/v1/zabbix/webhook` is Zabbix). The lines of the app do not name the user |
+| A phone | the last address of each device is stored with its token. Until the dashboard shows it, read it from the database (below), or match the time of **Devices → last seen** with the `/v1/stream` lines |
+
+```bash
+docker compose exec db psql -U zweep -d zweep -c "select u.username, d.name as device, t.last_ip, t.last_used_at from zw_device_token t join zw_device d on d.id = t.device_id join zw_user u on u.id = d.user_id where d.revoked_at is null order by t.last_used_at desc nulls last"
+```
+
+To stop an address: Zweep blocks by itself, for 15 minutes, an address with 10 failed authentications
+in 10 minutes (`zweep_banned_ips`, and the triggers of the monitoring template). A permanent block
+belongs to the firewall or to the reverse proxy in front of Zweep, where the traffic is stopped before
+it arrives. The dashboard, the metrics and the webhook of each source have their own allow-lists
+(`ZWEEP_ADMIN_ALLOWED_IPS`, `ZWEEP_METRICS_ALLOWED_IPS`, *Allowed webhook addresses*).
 
 ## 11.7 App updates
 

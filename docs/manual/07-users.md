@@ -33,7 +33,15 @@ everyone on call, and a separate admin account without two-step verification for
 | Username | letters, digits and `. _ @ -`. For operators it must match **Send to** of the Zweep media in Zabbix. |
 | Full name | shown in the dashboard |
 | Role | operator |
-| Password | **optional** for operators. Without a password the app can only be activated with a QR code or an activation code given by an admin or manager (suggested). With a password the operator can add the server in the app by himself. |
+| Password | **optional** for operators. Without a password the app can only be activated with a QR code or an activation code given by an admin or manager (suggested). With a password the operator can add the server in the app without a code (below). |
+
+**The password of an operator.** It is used only in the app, to add the server (*Username and
+password*), and never again after that: the phone then holds its own token, and operators cannot sign
+in to the dashboard. The operator **cannot change it**, and there is no forced change at first use: an
+admin sets it, changes it or removes it from the user page (**Password**). Changing it does
+not disconnect the phones already activated. If you do not want to hand out a password at all, leave
+it empty and use the QR code. Dashboard accounts (admin, manager) change their own password in
+**My account**.
 
 On the user page you can then:
 
@@ -204,4 +212,4 @@ Recipients: one operator, the operators of a custom channel, or all operators. Y
 show it: in a severity channel, or in a custom channel (badge and color). Test messages and
 announcements go through the same delivery path as real alarms, so they are a real end-to-end test.
 
-The operator can also send himself a test alarm from the app: **Settings → server → Send test alarm**.
+The operator can also send a test alarm to their own phone from the app: **Settings → server → Send test alarm**.

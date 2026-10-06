@@ -92,6 +92,25 @@ happened yet). Without the metrics listener only the two health triggers work, a
 
 3. **Log file** / **Docker** monitoring for `"level":"ERROR"` lines, if you collect logs.
 
+### The host and the containers
+
+The template above watches Zweep from the outside, and the database only through it (the health check
+answers 200 only if PostgreSQL does). It does not see the machine: a full disk stops PostgreSQL and
+the backups, and a container that restarts in a loop looks healthy between two restarts. Monitor the
+host with the standard tools of your monitoring; with Zabbix, no extra container is needed:
+
+1. install **Zabbix agent 2** on the Docker host, as a normal service;
+2. link the template **Linux by Zabbix agent**: above all **free disk space** (the Docker volumes and
+   the backup directory), then memory and load;
+3. link the template **Docker by Zabbix agent 2** (the agent user must be in the `docker` group): it
+   discovers the two containers of the stack and reports one that is stopped, unhealthy or restarting.
+
+The template **PostgreSQL by Zabbix agent 2** (connections, size, locks) needs the database port
+reachable by the agent and a read-only monitoring user: in the Compose stack the database is on a
+private network, so publish it on the loopback of the host with a `compose.override.yaml`
+(`"127.0.0.1:5432:5432"` on the `db` service). It is worth it for large installations or an external
+database; for a small one the three points above and the health of Zweep cover the real failures.
+
 ### With Prometheus
 
 ```yaml
