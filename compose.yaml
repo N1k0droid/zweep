@@ -33,7 +33,7 @@ services:
     networks: [zweep]
 
   zweep:
-    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.2}
+    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.3}
     restart: unless-stopped
     depends_on:
       db:
@@ -44,6 +44,9 @@ services:
       ZWEEP_SERVICE_URLS: ${ZWEEP_SERVICE_URLS:?set ZWEEP_SERVICE_URLS in .env}
       ZWEEP_TRUSTED_PROXIES: ${ZWEEP_TRUSTED_PROXIES:-}
       ZWEEP_LISTEN_PLAIN: ${ZWEEP_LISTEN_PLAIN:-}
+      ZWEEP_ADMIN_ALLOWED_IPS: ${ZWEEP_ADMIN_ALLOWED_IPS:-}
+      ZWEEP_METRICS_LISTEN_HTTP: ${ZWEEP_METRICS_LISTEN_HTTP:-}
+      ZWEEP_METRICS_ALLOWED_IPS: ${ZWEEP_METRICS_ALLOWED_IPS:-}
       ZWEEP_BACKUP_DIR: /backups
       ZWEEP_BACKUP_HOUR: ${ZWEEP_BACKUP_HOUR:-1}
       ZWEEP_BACKUP_KEEP: ${ZWEEP_BACKUP_KEEP:-14}

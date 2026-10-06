@@ -21,6 +21,7 @@ func (d *Dashboard) downloadRoutes() {
 	d.mux.HandleFunc("GET "+prefix+"/downloads", d.page(anyRole, d.downloads))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/media_zweep.yaml", d.page(anyRole, d.downloadMediaType))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/zweep-mediatype.js", d.page(anyRole, d.downloadScript))
+	d.mux.HandleFunc("GET "+prefix+"/downloads/template_zweep.yaml", d.page(anyRole, d.downloadTemplate))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/zweep.apk", d.page(anyRole, d.downloadAPK))
 	d.mux.HandleFunc("POST "+prefix+"/downloads/apk/rescan", d.page(adminOnly, d.apkRescan))
 }
@@ -62,6 +63,13 @@ func (d *Dashboard) downloadMediaType(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	_, _ = w.Write(zabbix.YAML(o))
+}
+
+// downloadTemplate serves the Zabbix template that monitors Zweep (Data collection > Templates > Import)
+func (d *Dashboard) downloadTemplate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="template_zweep.yaml"`)
+	_, _ = w.Write(zabbix.Template)
 }
 
 func (d *Dashboard) downloadScript(w http.ResponseWriter, r *http.Request) {

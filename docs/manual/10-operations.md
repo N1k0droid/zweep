@@ -21,9 +21,53 @@ ZWEEP_METRICS_TOKEN_FILE=/etc/zweep/metrics.token     # at least 32 characters
 ZWEEP_METRICS_ALLOWED_IPS=10.0.99.20/32               # Prometheus or the Zabbix server/proxy
 ```
 
+With Docker Compose, in `.env`:
+
+```ini
+ZWEEP_METRICS_LISTEN_HTTP=:9464
+ZWEEP_METRICS_ALLOWED_IPS=192.168.10.20               # the Zabbix server or proxy
+```
+
+and publish the port with a `compose.override.yaml` next to `compose.yaml`:
+
+```yaml
+services:
+  zweep:
+    ports:
+      - "192.168.10.25:9464:9464"     # the LAN address of the Docker host
+```
+
 ### With Zabbix
 
-Monitor Zweep **from Zabbix**, with an action that notifies by e-mail/SMS, **not** via Zweep:
+Monitor Zweep **from Zabbix**, with an action that notifies by e-mail/SMS, **not** via Zweep.
+
+**The ready template.** **Dashboard → Download → Zabbix template to monitor Zweep** gives
+`template_zweep.yaml` (also in the `zabbix/` directory of the repository), for Zabbix 7.0 and later:
+
+1. Zabbix: **Data collection → Templates → Import**.
+2. Create a host (any name, e.g. `Zweep`; no interface is needed) with the template **Zweep by HTTP**.
+3. The macros come with the template: in the **Macros** tab of the host choose *Inherited and host
+   macros* and **Change** the first two (the others have working defaults):
+
+   | Macro | Value |
+   |---|---|
+   | `{$ZWEEP.URL}` | the public URL of Zweep, as in the media type, without path |
+   | `{$ZWEEP.METRICS.URL}` | the metrics listener, e.g. `http://192.168.10.25:9464` |
+   | `{$ZWEEP.METRICS.TOKEN}` | the bearer token, if the listener has one (secret macro) |
+   | `{$ZWEEP.USERS.ONLINE.MIN}` | users that must have a phone connected (default 1) |
+
+4. Put the host in an action that notifies by e-mail or SMS.
+
+What it watches: the health endpoint (Zweep stalled or unreachable, in 2–5 minutes: the first thing
+to have), deliveries stuck or unconfirmed, users and devices online, database errors, webhook calls
+rejected, authentication failures, acknowledgements not reaching Zabbix, certificate and backups, a
+restart or a new version; and, for each source found by discovery, the Zabbix API not answering and
+the expiry of its token. An item whose metric does not exist in your setup shows `-1` (the certificate
+expiry behind a reverse proxy, the token expiry when no date is set, the times of things that never
+happened yet). Without the metrics listener only the two health triggers work, and
+*Zweep: metrics not available* stays on: disable it, or enable the listener.
+
+**By hand**, the same checks:
 
 1. **Web scenario** or *HTTP agent* item on `https://zweep.corp.example.com:8080/v1/health`, trigger on
    status ≠ 200 or no data for 3 minutes.
@@ -286,7 +330,7 @@ reading) and possibly of others inside alarm texts (host names, messages). In sh
 
 - all data stays on your server; the app talks only to it (no Google push, no third-party analytics);
 - retention is configurable for every kind of data (chapter 4.3);
-- deleting a user deletes his devices, messages and deliveries; the audit trail keeps the record of what
+- deleting a user deletes their devices, messages and deliveries; the audit trail keeps the record of what
   happened, as required for accountability;
 - `tracking.shown` (whether and why an alarm was shown) can be turned off if your works council or
   policy requires it.

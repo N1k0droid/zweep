@@ -26,12 +26,14 @@ English and Italian (**EN/IT** in the header) and works on phones and tablets to
 | **Channels** | all (edit: admin) | severity channels, custom channels and their rules |
 | **Deliveries** | all | each message to each device: state, timing, retries, why it was not shown |
 | **Test** | admin, manager | test messages and announcements |
-| **Download** | all | media type for Zabbix (generic or per source), media type script, the Android app (APK, link and QR for the first installation) |
+| **Download** | all | media type for Zabbix (generic or per source), media type script, the Zabbix template that monitors Zweep (chapter 10.1), the Android app (APK, link and QR for the first installation) |
 | **Audit** | all | who did what, when, from where; export CSV |
 | **Logging** | admin | the latest log lines of this node, live |
 | **Settings** (⚙ icon, top right) | admin | *General* (runtime settings, chapter 4.3, and the **Danger zone**) and *HTTPS* (chapter 5) |
 
 ### Status
+
+![The Status page](../assets/screenshots/dashboard-status.png)
 
 Shows **warnings** first, each with what to do, for example:
 
@@ -52,6 +54,8 @@ the metrics (chapter 10.1).
 
 ### Problems
 
+![The Problems page](../assets/screenshots/dashboard-problems.png)
+
 *Problems in Zabbix* is a read-only view of all problems known to Zweep, filtered by source, severity and
 text, with duration and, for each problem, **Notified to**: which operators Zweep notified for that event.
 Useful to answer "did anyone get this?".
@@ -62,7 +66,7 @@ Useful to answer "did anyone get this?".
 
 ### Outside the perimeter
 
-Every notification that Zabbix sent to an operator and Zweep delivered although it is **outside his
+Every notification that Zabbix sent to an operator and Zweep delivered although it is **outside their
 permissions** (own perimeter plus user groups). Zweep never drops such an alarm, but it means the Zabbix
 action and the Zweep permissions disagree. For each one: time, operator, severity, host and event, host
 groups, source and **why** it is outside — *source not in the perimeter*, *host group not covered*,
@@ -75,6 +79,8 @@ Typical fixes: restrict the Zabbix action (conditions on host groups or severity
 operator in Zabbix), or widen the perimeter / add the operator to a user group.
 
 ### Deliveries
+
+![The Deliveries page](../assets/screenshots/dashboard-deliveries.png)
 
 For each message: operator, device, sequence, when it was stored, sent, delivered and shown, retries, and
 the state on the phone (shown / not shown with the reason, e.g. *Do Not Disturb active*). Use it to answer
@@ -95,6 +101,8 @@ output of the server (`docker logs`, `journalctl`). Every view of this page is i
 audit trail, because logs may contain personal data (IP addresses, usernames).
 
 ### Download
+
+![The Download page](../assets/screenshots/dashboard-downloads.png)
 
 - **Zabbix media type**: generic, or prefilled for a source (chapter 6.2).
 - **Media type script** (`zweep-mediatype.js`): to create the media type by hand.

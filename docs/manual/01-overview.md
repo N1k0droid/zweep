@@ -83,7 +83,7 @@ Three principles guide the whole design:
 Independently of the webhook, when a **service user** is configured for a Zabbix instance Zweep reads
 its open problems through the Zabbix API every 30 seconds and keeps a copy (the *projection*). The
 app uses it for the **Problems** tab, and operators allowed to do so can **acknowledge** problems from
-the phone: Zweep forwards the acknowledgement to Zabbix in their name ("user: mario — taking it").
+the phone: Zweep forwards the acknowledgement to Zabbix in their name ("Zweep User: mario", then "taking it").
 
 ## 1.3 What Zweep guarantees
 

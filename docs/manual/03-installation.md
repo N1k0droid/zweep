@@ -61,18 +61,42 @@ server, for example in `/opt/zweep`:
 └── backups/                (owner 65532; copied elsewhere every night)
 ```
 
+**Before you start**, on the server:
+
+- `docker --version && docker compose version` must both answer: Zweep needs Docker Engine with the
+  **Compose plugin** (`docker compose`), not the old `docker-compose` (see the
+  [Docker documentation](https://docs.docker.com/engine/install/) to install it).
+- If the server is itself a **system container** (LXC and similar) rather than a physical or virtual
+  machine, its host must allow nested containers (the option is usually called *nesting*): without it
+  Docker fails with permission errors when it starts a container.
+- Run the commands as **root**. If you use sudo, open a root shell first (`sudo -i`): in
+  `sudo command > file` the redirection is done by your user and fails in a directory of root.
+
 ```bash
-sudo mkdir -p /opt/zweep && cd /opt/zweep
-curl -fsSLO https://raw.githubusercontent.com/N1k0droid/zweep/v1.0.2/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/N1k0droid/zweep/v1.0.2/.env.example -o .env
+mkdir -p /opt/zweep && cd /opt/zweep
+curl -fsSLO https://raw.githubusercontent.com/N1k0droid/zweep/v1.0.3/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/N1k0droid/zweep/v1.0.3/.env.example -o .env
 
 mkdir -p secrets backups
 head -c 32 /dev/urandom > secrets/master.key
 openssl rand -hex 24 > secrets/postgres-password
 printf 'postgres://zweep:%s@db:5432/zweep?sslmode=disable' "$(cat secrets/postgres-password)" > secrets/database-url
 chmod 600 secrets/*
-sudo chown 65532:65532 backups secrets/master.key secrets/database-url
+chown 65532:65532 backups secrets/master.key secrets/database-url
 ```
+
+(Or `git clone https://github.com/N1k0droid/zweep.git /opt/zweep`, as in the README: the same files,
+updated with `git pull`.)
+
+What the commands do:
+
+| Command | What it creates | Keep it? |
+|---|---|---|
+| `head -c 32 /dev/urandom > secrets/master.key` | the **master key** (3.2): 32 random bytes that encrypt the secrets in the database and the backups | **yes, a copy offline, away from the backups** |
+| `openssl rand -hex 24 > secrets/postgres-password` | the password of the PostgreSQL of the stack | it stays on the server; needed only to open the database by hand |
+| `printf 'postgres://…' > secrets/database-url` | the address Zweep uses to reach its database, with that password | no: it can be written again from the password |
+| `chmod 600 secrets/*` | makes the three files readable by their owner only | — |
+| `chown 65532:65532 …` | gives the two files Zweep reads, and the backup directory, to the user of the container | — |
 
 The container runs as user `nonroot` (uid 65532): it must be able to read its two secret files and write
 the backups. `sslmode=disable` is fine because the database is on the private Docker network of the
@@ -85,10 +109,12 @@ Edit `.env`:
 | `ZWEEP_SERVICE_URLS` | **required**: the address phones and Zabbix use (3.1) |
 | `ZWEEP_TRUSTED_PROXIES` | the reverse proxy, if any (chapter 5.3) |
 | `ZWEEP_PUBLIC_PORT`, `ZWEEP_ADMIN_PORT` | host ports of the public listener and of the dashboard (always on `127.0.0.1`) |
+| `ZWEEP_ADMIN_ALLOWED_IPS` | addresses allowed on the dashboard, when it is published on the LAN (3.6) |
+| `ZWEEP_METRICS_LISTEN_HTTP`, `ZWEEP_METRICS_ALLOWED_IPS` | metrics for monitoring (chapter 10.1) |
 | `ZWEEP_LISTEN_PLAIN` | plain HTTP listener for Let's Encrypt HTTP-01 (3.3.2) |
 | `ZWEEP_BACKUP_HOUR`, `ZWEEP_BACKUP_KEEP` | daily backup in `./backups` |
 | `TZ` | time zone of the logs and of the backup hour |
-| `ZWEEP_IMAGE` | `ghcr.io/n1k0droid/zweep:1.0.2` or the mirror `docker.io/n1k0droid/zweep:1.0.2` |
+| `ZWEEP_IMAGE` | `ghcr.io/n1k0droid/zweep:1.0.3` or the mirror `docker.io/n1k0droid/zweep:1.0.3` |
 
 Every other option of chapter 4 can be added to the `environment` of the `zweep` service. Secrets are
 always files, never variables.
@@ -97,10 +123,15 @@ Start it:
 
 ```bash
 docker compose up -d
-docker compose logs -f zweep
+docker compose ps                          # zweep and db: "healthy" after a few seconds
+curl -s http://127.0.0.1:8080/v1/health    # {"healthy":true}
 ```
 
-The service is hardened: read-only file system, no new privileges, no Linux capabilities.
+Then try `http://<server>:8080/v1/health` from another PC: phones and Zabbix arrive from the network.
+If it answers on the server only, a firewall blocks the port (on the host or on the network). `docker compose logs -f zweep` follows the log.
+
+The service is hardened: read-only file system, no new privileges, no Linux capabilities. Docker
+restarts it if it stops (`restart: unless-stopped`).
 
 ### 3.3.1 Building the image from the source
 
@@ -109,11 +140,11 @@ linux/arm64. To build your own:
 
 ```bash
 git clone https://github.com/N1k0droid/zweep.git && cd zweep
-cp /path/to/zweep-1.0.1.apk apk/        # the signed app offered to the phones (release asset)
-docker build --build-arg VERSION=1.0.2 -t zweep-server:1.0.2 .
+cp /path/to/zweep-1.0.3.apk apk/        # the signed app offered to the phones (release asset)
+docker build --build-arg VERSION=1.0.3 -t zweep-server:1.0.3 .
 ```
 
-Then set `ZWEEP_IMAGE=zweep-server:1.0.2` in `.env`. The build uses base images pinned by digest; the
+Then set `ZWEEP_IMAGE=zweep-server:1.0.3` in `.env`. The build uses base images pinned by digest; the
 result has no shell and runs as non-root. `make docker` does the same, and `make sbom` writes a
 CycloneDX SBOM of the dependencies in `dist/`.
 
@@ -229,6 +260,15 @@ curl -s http://127.0.0.1:8080/v1/health
 docker compose exec zweep zweep-server healthcheck && echo healthy
 ```
 
+To read only the token:
+
+```bash
+docker compose logs zweep | grep -o 'zws_[A-Za-z0-9_-]*' | tail -1
+```
+
+The token is valid for one hour and is printed again at every start while no admin exists:
+`docker compose restart zweep` gives a new one.
+
 ### Creating the first admin
 
 **From the browser.** Open `http://127.0.0.1:8081/admin/` (through an SSH tunnel if the server is
@@ -266,15 +306,15 @@ This also ends the dashboard sessions of that user. Two-step verification stays 
 
 The first admin created (setup page or `admin bootstrap`) is the **superadmin**, for good:
 
-- only he can **reset the two-step verification** of the other accounts (**Users → name → Reset
+- only the superadmin can **reset the two-step verification** of the other accounts (**Users → name → Reset
   two-step verification**), for example when someone loses the phone with the authenticator;
-- he cannot be deleted, disabled or demoted (not even by another admin);
+- the superadmin cannot be deleted, disabled or demoted (not even by another admin);
 - an admin can turn two-step verification on only while **at least one other active admin** exists:
   with a single admin, a lost authenticator would lock the dashboard.
 
 💡 Create a second admin right after the first one, and keep both with two-step verification.
 
-If the **superadmin** loses his authenticator (nobody else can reset it from the dashboard), use the
+If the **superadmin** loses the authenticator (nobody else can reset it from the dashboard), use the
 command line on the server:
 
 ```bash
@@ -290,12 +330,70 @@ The dashboard (admin port) gives full control of Zweep. Never publish it like th
 
 | Option | How |
 |---|---|
-| Host loopback + SSH tunnel (default) | `127.0.0.1:8081`, then `ssh -L 8081:127.0.0.1:8081 server` |
+| Host loopback + SSH tunnel (default) | `127.0.0.1:8081`, then `ssh -N -L 8081:127.0.0.1:8081 user@server` (below) |
 | Management network | `ZWEEP_ADMIN_LISTEN_HTTP=10.0.99.5:8081` (an address on the admin VLAN only) |
+| Published on the LAN, with an allow-list | with Docker, a `compose.override.yaml` next to `compose.yaml` (kept by `git pull`) and `ZWEEP_ADMIN_ALLOWED_IPS` in `.env` (below) |
 | Reverse proxy with allow-list or SSO | proxy on the admin network → `127.0.0.1:8081` |
 | Disabled | `ZWEEP_ADMIN_LISTEN_HTTP=-` (administration only from the command line) |
 
 When HTTPS is on (chapter 5), the dashboard is served over HTTPS too, with the same certificate.
+
+**The SSH tunnel.** On your PC (Linux, macOS, Windows 10 or later):
+
+```bash
+ssh -N -L 8081:127.0.0.1:8081 user@server
+```
+
+It asks for the password (or uses your key) and then shows nothing: it is working. Leave that window
+open and browse `http://127.0.0.1:8081/admin/` **on your PC**; `Ctrl+C` closes the tunnel. Without
+`-N` the same command also opens a normal shell on the server: that is expected, and the tunnel lasts
+as long as the shell. Any user of the server can open the tunnel; root is not needed.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| the browser says *connection reset*, and the SSH window prints `channel 3: open failed: administratively prohibited` | the SSH server forbids forwarding (hardened images: `AllowTcpForwarding no`) | in `/etc/ssh/sshd_config` replace that line with `AllowTcpForwarding local` and add `PermitOpen 127.0.0.1:8081` next to it (only this destination is allowed); `sshd -t` to check, then `systemctl restart ssh`. If the file ends with `Match` blocks, edit the line where it is: lines added at the end would belong to the last block |
+| `bind: Address already in use` | port 8081 of your PC is taken | use another local port: `-L 18081:127.0.0.1:8081`, then `http://127.0.0.1:18081/admin/` |
+| *connection refused* in the browser | the tunnel is closed, or Zweep is not running | check the SSH window and `docker compose ps` |
+
+**Never on the public address.** Behind a reverse proxy, forward only the public port (8080). Check
+it from outside: `curl -s -o /dev/null -w '%{http_code}\n' https://<public name>/admin/login` must
+print `404`. A `200` means that the proxy points to the admin port: the dashboard is on the Internet.
+
+**Dashboard on the LAN with an allow-list** (Docker). Publish the admin port on the address of the
+host as well:
+
+```yaml
+# compose.override.yaml
+services:
+  zweep:
+    ports:
+      - "192.168.10.25:8081:8081"     # the LAN address of the Docker host
+```
+
+and in `.env` allow only the PCs of the administrators:
+
+```ini
+# the PCs of the administrators, and the Docker network (keeps the SSH tunnel working, see below)
+ZWEEP_ADMIN_ALLOWED_IPS=192.168.10.50,192.168.10.51,172.16.0.0/12
+```
+
+then `docker compose up -d`. Any other address gets *403 Forbidden*. Notes:
+
+- **Keep the SSH tunnel**: through the tunnel (`127.0.0.1:8081` of the host) the requests reach the
+  container from the gateway of its Docker network, not from the loopback. Without that network in
+  the list the tunnel gets *403* too. Docker takes its networks from `172.16.0.0/12` by default; to
+  see the one in use: `docker network inspect zweep_zweep | grep Subnet` (the network is named after
+  the directory of the stack; `docker network ls` lists them). Normally only
+  the Docker host and the containers of the stack come from that network. Check it once: open the
+  dashboard from a PC of the LAN and look at the address logged for the request (**Logging**, or
+  `docker compose logs zweep`): it must be the address of the PC. If every client shows the address of
+  the Docker gateway (rootless Docker, Docker Desktop), the allow-list cannot tell them apart: leave
+  the Docker network out and use the tunnel only with a firewall rule, or do not publish the port.
+- Behind a reverse proxy listed in `ZWEEP_TRUSTED_PROXIES`, the allow-list applies to the real client
+  address.
+- A firewall rule does the same outside Zweep. With Docker, published ports bypass the `INPUT` chain
+  and `ufw`: use the `DOCKER-USER` chain, e.g.
+  `iptables -I DOCKER-USER -p tcp --dport 8081 ! -s 192.168.10.50 -j DROP`.
 
 ## 3.7 Upgrading
 

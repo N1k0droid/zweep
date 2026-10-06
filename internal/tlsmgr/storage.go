@@ -22,7 +22,9 @@ import (
 // locks are PostgreSQL advisory locks, so only one node talks to the CA at a time.
 type Storage struct {
 	pool *pgxpool.Pool
-	box  *crypto.Box
+	// lockPool: connections that hold an advisory lock, never taken from pool (see store.Store.Locks)
+	lockPool *pgxpool.Pool
+	box      *crypto.Box
 
 	mu    sync.Mutex
 	locks map[string]*pgxpool.Conn
@@ -31,8 +33,9 @@ type Storage struct {
 var _ certmagic.Storage = (*Storage)(nil)
 
 // NewStorage returns the storage on the zw_tls_object table
-func NewStorage(pool *pgxpool.Pool, box *crypto.Box) *Storage {
-	return &Storage{pool: pool, box: box, locks: map[string]*pgxpool.Conn{}}
+// NewStorage: pool runs the queries, lockPool gives the connections that hold a lock (store.Store.Locks)
+func NewStorage(pool, lockPool *pgxpool.Pool, box *crypto.Box) *Storage {
+	return &Storage{pool: pool, lockPool: lockPool, box: box, locks: map[string]*pgxpool.Conn{}}
 }
 
 // Store saves a value
@@ -133,7 +136,7 @@ func (s *Storage) Stat(ctx context.Context, key string) (certmagic.KeyInfo, erro
 
 // Lock takes a cluster-wide lock, held on a dedicated connection until Unlock
 func (s *Storage) Lock(ctx context.Context, name string) error {
-	conn, err := s.pool.Acquire(ctx)
+	conn, err := s.lockPool.Acquire(ctx)
 	if err != nil {
 		return err
 	}

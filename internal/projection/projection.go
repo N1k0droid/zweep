@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,7 +198,7 @@ func NewClient(box *crypto.Box, src *store.Source) (*zbxapi.Client, error) {
 var ErrPollBusy = errors.New("poll already running")
 
 func (m *Manager) PollSource(ctx context.Context, src *store.Source) error {
-	conn, err := m.st.Pool.Acquire(ctx)
+	conn, err := m.st.LockConn(ctx)
 	if err != nil {
 		metrics.DBErrors.Inc()
 		return err
@@ -556,7 +557,7 @@ var actionNames = []struct {
 }{{1, "close"}, {2, "ack"}, {4, "message"}, {8, "severity"}, {16, "unack"}, {32, "suppress"}, {64, "unsuppress"}, {128, "rank_cause"}, {256, "rank_symptom"}}
 
 // History maps Zabbix acknowledges to the app history. An entry comes from the app only if the
-// service user wrote it (serviceUserID) and it carries the "user: <name> - " prefix set by the server.
+// service user wrote it (serviceUserID) and it carries the "Zweep User: <name>" line set by the server.
 // Zabbix hides the names of other users from the service user.
 func History(raw json.RawMessage, serviceUserID string) []HistoryEntry {
 	var acks []zbxapi.Acknowledge
@@ -590,14 +591,19 @@ func History(raw json.RawMessage, serviceUserID string) []HistoryEntry {
 	return out
 }
 
-// AppAuthor parses "user: <name> - <text>"
+// AppAuthor parses "Zweep User: <name>\n<text>"; the formats of 1.0.2 and earlier ("user: <name>\n<text>",
+// "user: <name> - <text>") are still read.
 func AppAuthor(message string) (name, text string, ok bool) {
-	const prefix = "user: "
-	if len(message) <= len(prefix) || message[:len(prefix)] != prefix {
+	rest := ""
+	for _, prefix := range []string{"Zweep User: ", "user: "} {
+		if len(message) > len(prefix) && strings.HasPrefix(message, prefix) {
+			rest = message[len(prefix):]
+			break
+		}
+	}
+	if rest == "" {
 		return "", "", false
 	}
-	rest := message[len(prefix):]
-	// Current format "user: <name>\n<text>"; the earlier "user: <name> - <text>" is still read.
 	// Usernames contain neither spaces nor newlines, so the first separator ends the name.
 	if i := bytes.IndexByte([]byte(rest), '\n'); i > 0 && bytes.IndexByte([]byte(rest[:i]), ' ') < 0 {
 		return rest[:i], rest[i+1:], true

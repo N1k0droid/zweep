@@ -115,3 +115,9 @@ func YAML(o Options) []byte {
 	}
 	return []byte(b.String())
 }
+
+// Template is the Zabbix template that monitors a Zweep server (health endpoint and metrics listener,
+// manual 10.1); written by tools/zbxtemplate/build.py
+//
+//go:embed template_zweep.yaml
+var Template []byte

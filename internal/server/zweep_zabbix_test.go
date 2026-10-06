@@ -78,7 +78,7 @@ func newZbxLab(t *testing.T, base string) *zbxLab {
 	l.call("usergroup.create", map[string]any{"name": "ZP API " + suffix, "gui_access": 3,
 		"hostgroup_rights": []map[string]any{{"id": groupID, "permission": 2}}}, &ids)
 	usrgrp := ids.UsrGrpIDs[0]
-	methods := []string{"problem.get", "event.get", "host.get", "hostgroup.get", "trigger.get"}
+	methods := []string{"problem.get", "event.get", "host.get", "hostgroup.get"}
 	for _, mode := range []string{"read", "read_ack"} {
 		m := methods
 		if mode == "read_ack" {
@@ -225,7 +225,7 @@ func TestZabbix_ProblemsDetailAck(t *testing.T) {
 			require.Equal(t, 202, res.Code, string(res.Raw))
 			require.True(t, zwclient.WaitFor(20*time.Second, func() bool { return strings.Contains(string(joinFrames(dev.Frames("ack.result"))), `"confirmed"`) }))
 			acks := lab.acknowledges(eventID)
-			require.Equal(t, "user: mario\nsto verificando", acks[0].Message)
+			require.Equal(t, "Zweep User: mario\nsto verificando", acks[0].Message)
 			res = zwclient.Do(nil, "POST", e.url+"/v1/app/acks", body, auth)
 			require.Equal(t, 200, res.Code)
 			require.Equal(t, "confirmed", res.Body["state"])
@@ -428,7 +428,7 @@ func TestZabbix_T11_APIUnreachable(t *testing.T) {
 		return strings.Contains(string(joinFrames(dev.Frames("ack.result"))), `"request_id":"`+reqID+`","source":"zbx","state":"confirmed"`)
 	}))
 	require.Equal(t, "confirmed", zwclient.Do(nil, "GET", e.url+"/v1/app/acks/"+reqID, nil, auth).Body["state"])
-	require.Equal(t, "user: mario\nack while Zabbix is down", lab.acknowledges(eventID)[0].Message)
+	require.Equal(t, "Zweep User: mario\nack while Zabbix is down", lab.acknowledges(eventID)[0].Message)
 	require.Nil(t, pollNow(t, e, src))
 	snap = deviceGet(t, e, dev, "/v1/app/problems")
 	require.Equal(t, false, snap.Body["stale"], "%d %s", snap.Code, string(snap.Raw))

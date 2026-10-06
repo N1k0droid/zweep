@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -30,11 +32,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,16 +72,21 @@ fun ProblemsScreen(vm: AppViewModel, open: (ProblemItem) -> Unit) {
     val liveUntil by vm.liveUntil.collectAsStateWithLifecycle()
     val offline = servers.filter { it.enabled && "problems" in it.features.split(',') && links[it.id]?.state != ConnState.CONNECTED }
         .map { HistoryNotice(it.label, liveUntil[it.id]) }
+    // Sources shown: all by default; the user unticks the ones to hide (new sources appear at once)
+    val sources = live.map { sourceKey(it) to sourceLabel(it, servers.size > 1) }.distinct().sortedBy { it.second.lowercase() }
+    val srcHidden = settings["filter_src_hidden_problems"]?.split('\n')?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+    val shownLive = live.filter { sourceKey(it) !in srcHidden }
     val all = when (view) {
-        VIEW_HISTORY -> live.filter { now - isoMs(it.row.clock) <= period * 60_000L }
-        VIEW_RECENT -> live.filter { it.row.isOpen || (it.row.isResolved && now - isoMs(it.row.rClock) <= resolvedMs) }
-        else -> live.filter { it.row.isOpen }
+        VIEW_HISTORY -> shownLive.filter { now - isoMs(it.row.clock) <= period * 60_000L }
+        VIEW_RECENT -> shownLive.filter { it.row.isOpen || (it.row.isResolved && now - isoMs(it.row.rClock) <= resolvedMs) }
+        else -> shownLive.filter { it.row.isOpen }
     }
     val sevShown = vm.severities(settings, "filter_sev_problems")
     val status = settings["filter_status_problems"] ?: "all"
     val hgShown = settings["filter_hg_problems"]?.split('\n')?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
     val hostGroups = all.flatMap { it.row.hostgroups }.distinct()
     var query by remember { mutableStateOf("") }
+    var search by rememberSaveable { mutableStateOf(false) }
     val list = all.filter { p ->
         p.row.severity in sevShown && inHostGroups(p.row.hostgroups, hgShown) && when (status) {
             "unacked" -> p.row.isOpen && !p.row.acknowledged
@@ -90,13 +99,20 @@ fun ProblemsScreen(vm: AppViewModel, open: (ProblemItem) -> Unit) {
     val stale = live.filter { it.stale }.map { it.sourceName }.distinct()
     Column(Modifier.fillMaxSize()) {
         Header(stringResource(R.string.problems_title, list.size)) {
+            if (sources.size > 1 || srcHidden.isNotEmpty()) {
+                SourceFilter(sources, srcHidden) { vm.setSetting("filter_src_hidden_problems", it.sorted().joinToString("\n")) }
+            }
             IconButton(onClick = { vm.refreshProblems() }) {
                 Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.action_refresh), tint = Zw.textBody)
             }
+            IconButton(onClick = { search = !search }) { Icon(painterResource(R.drawable.ic_search), stringResource(R.string.action_search), tint = Zw.textBody) }
         }
         StatusStrip(vm)
-        OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
-            placeholder = { Text(stringResource(R.string.search_problems_hint)) }, singleLine = true)
+        // The search field appears with the search icon, as in the Alerts tab
+        if (search) {
+            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+                placeholder = { Text(stringResource(R.string.search_problems_hint)) }, singleLine = true)
+        }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SeverityFilter(sevShown) { vm.setSeverities("filter_sev_problems", it) }
             HostGroupFilter(hostGroups, hgShown) { vm.setSetting("filter_hg_problems", it.sorted().joinToString("\n")) }
@@ -128,6 +144,40 @@ fun ProblemsScreen(vm: AppViewModel, open: (ProblemItem) -> Unit) {
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { "${it.serverRef}/${it.row.source}/${it.row.eventid}" }) { p -> ProblemRowView(p, now, servers.size > 1) { open(p) } }
+            }
+        }
+    }
+}
+
+private fun sourceKey(p: ProblemItem) = "${p.serverRef}/${p.row.source}"
+
+private fun sourceLabel(p: ProblemItem, showServer: Boolean) =
+    if (showServer) listOf(p.sourceName, p.serverLabel).filter { it.isNotEmpty() }.distinct().joinToString(" · ") else p.sourceName
+
+/** Top bar filter of the Zabbix sources: a tick per source; the icon is highlighted while some are hidden */
+@Composable
+private fun SourceFilter(sources: List<Pair<String, String>>, hidden: Set<String>, onChange: (Set<String>) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(painterResource(R.drawable.ic_filter_list), stringResource(R.string.filter_sources), tint = if (hidden.isEmpty()) Zw.textBody else Zw.accent)
+        }
+        DropdownMenu(open, { open = false }) {
+            Text(stringResource(R.string.filter_sources), color = Zw.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            sources.forEach { (key, label) ->
+                val on = key !in hidden
+                DropdownMenuItem(
+                    text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { Checkbox(on, null) },
+                    // At least one source stays shown
+                    onClick = { if (!on) onChange(hidden - key) else if (sources.count { it.first !in hidden } > 1) onChange(hidden + key) },
+                )
+            }
+            if (hidden.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.filter_select_all), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                    onClick = { onChange(emptySet()) },
+                )
             }
         }
     }
@@ -166,7 +216,7 @@ private fun ProblemRowView(p: ProblemItem, now: Long, showServer: Boolean, onCli
                 Text(duration(since, end), color = Zw.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                val origin = if (showServer) listOf(p.sourceName, p.serverLabel).filter { it.isNotEmpty() }.distinct().joinToString(" · ") else p.sourceName
+                val origin = sourceLabel(p, showServer)
                 Text(origin, color = Zw.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (!p.row.isOpen) StatusLabel(stringResource(R.string.state_resolved), Zw.success)
                 if (p.row.suppressed) StatusLabel(stringResource(R.string.state_suppressed), Zw.textSecondary)

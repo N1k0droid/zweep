@@ -229,7 +229,7 @@ type OrphanResult struct {
 // `after` (the webhook recovery never arrived). Only one node runs it at a time; Ran is false when
 // another node holds the lock.
 func (s *Store) CloseOrphans(ctx context.Context, after time.Duration) (closed []OrphanResult, ran bool, err error) {
-	conn, err := s.Pool.Acquire(ctx)
+	conn, err := s.LockConn(ctx)
 	if err != nil {
 		return nil, false, err
 	}

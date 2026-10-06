@@ -138,6 +138,12 @@ func (d *Dashboard) sourceAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		body["token_expires_at"] = t
 	}
+	// "Not used" with a token typed in: the admin meant to configure the API and left the mode as it
+	// was; saving would discard the token and say that all is well
+	if body["mode"] == "disabled" && body["token"] != "" {
+		d.renderSource(w, r, http.StatusBadRequest, id, map[string]any{"FieldErrors": fieldErr("mode", "err.api_mode_unused")})
+		return
+	}
 	res := d.call(r, "PUT", "/v1/admin/sources/"+url.PathEscape(id)+"/api", body)
 	if !res.OK() {
 		data := res.errorData()
@@ -148,6 +154,10 @@ func (d *Dashboard) sourceAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		d.renderSource(w, r, res.Status, id, data)
+		return
+	}
+	if body["mode"] == "disabled" {
+		http.Redirect(w, r, sourceURL(id)+"?done=api_disabled", http.StatusSeeOther)
 		return
 	}
 	d.renderSource(w, r, http.StatusOK, id, map[string]any{"Flash": "done.api_checked", "Check": res.Body})

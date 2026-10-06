@@ -261,6 +261,7 @@
     <string name="filter_apply">Apply</string>
     <string name="filter_hostgroup_all">No host group selected: all are shown.</string>
     <string name="filter_hostgroup_selected">%1$d selected</string>
+    <string name="filter_sources">Sources</string>
     <string name="sound_restore">Restore Zweep sound</string>
     <string name="sound_restore_confirm">The channel gets the Zweep sound of its severity again. Android cannot change the sound of a channel, so the channel is created again: its other settings set by hand (vibration, Do Not Disturb exception…) go back to the defaults.</string>
     <string name="about_author">Author</string>

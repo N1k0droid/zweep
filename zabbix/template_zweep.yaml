@@ -1,0 +1,865 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: d72db28d1cd242feaa9cf155111ae3b7
+      name: Templates/Applications
+  templates:
+    - uuid: 576e100376dc499aa9b046a75399a94b
+      template: 'Zweep by HTTP'
+      name: 'Zweep by HTTP'
+      description: "Monitors a Zweep server: the health endpoint and the metrics listener (manual, chapter 10.1).\nSet the macros {$ZWEEP.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an action that does NOT use the Zweep media type."
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 73550e973ab64eb5a8ec943ee51a86d8
+          name: 'Health check: HTTP status'
+          type: HTTP_AGENT
+          key: zweep.health
+          delay: 1m
+          description: 'Status code of GET /v1/health: 200 when Zweep and its database work, 503 otherwise.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^HTTP/\S+\s+(\d+)'
+                - \1
+          timeout: 5s
+          url: '{$ZWEEP.URL}/v1/health'
+          status_codes: ''
+          retrieve_mode: HEADERS
+          tags:
+            - tag: component
+              value: health
+        - uuid: 831b3e0421ab4c9ca53e9d59e0160ea7
+          name: 'Metrics'
+          type: HTTP_AGENT
+          key: zweep.metrics
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Raw Prometheus metrics, source of the other items; not stored.'
+          timeout: 5s
+          url: '{$ZWEEP.METRICS.URL}/metrics'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$ZWEEP.METRICS.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: ef3dc51620be4456a42c4c0fc7df5992
+          name: 'Server up'
+          type: DEPENDENT
+          key: 'zweep.up'
+          delay: '0'
+          description: '1 while the server runs.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_up'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: up
+        - uuid: b1431f212f314e1ba1e32bb59d14887b
+          name: 'Version'
+          type: DEPENDENT
+          key: 'zweep.version'
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Version of the Zweep server.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_build_info'
+                - label
+                - version
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: version
+        - uuid: 0b58a1b260124faca33fb0e597567dde
+          name: 'Uptime'
+          type: DEPENDENT
+          key: 'zweep.uptime'
+          delay: '0'
+          value_type: FLOAT
+          units: uptime
+          description: 'Time since the server started.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_start_time_seconds'
+                - value
+                - ''
+            - type: JAVASCRIPT
+              parameters:
+                - "var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));"
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: uptime
+        - uuid: b8d6778816a34dbba9d8a710b6a8c0c0
+          name: 'Deliveries pending to reachable devices'
+          type: DEPENDENT
+          key: 'zweep.outbox.reachable'
+          delay: '0'
+          description: 'Messages not yet confirmed by devices that are connected or were so recently.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_outbox_pending{reachability="reachable"}'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: outbox
+        - uuid: d5d34b722b854e54a9ea8edebaa28af4
+          name: 'Deliveries pending to unreachable devices'
+          type: DEPENDENT
+          key: 'zweep.outbox.unreachable'
+          delay: '0'
+          description: 'Messages waiting for devices that are not reachable (phone off, no network).'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_outbox_pending{reachability="unreachable"}'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: outbox
+        - uuid: 4784805d75fa4495a8a87f791c19c002
+          name: 'Deliveries unconfirmed'
+          type: DEPENDENT
+          key: 'zweep.deliveries.unconfirmed'
+          delay: '0'
+          description: 'Deliveries that exhausted their retries without a receipt from the phone.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_deliveries_unconfirmed'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: deliveries
+        - uuid: 8b90ca6eebcf4c2baa5e11eb3f66ea65
+          name: 'Age of the oldest pending delivery'
+          type: DEPENDENT
+          key: 'zweep.pending.age'
+          delay: '0'
+          units: s
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_oldest_pending_age_seconds'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: pending
+        - uuid: 79a049272d254d0ba96816970889ad43
+          name: 'Users with a device online'
+          type: DEPENDENT
+          key: 'zweep.users.online'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_users_with_online_device'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: users
+        - uuid: c63d24e6e0144692a8758a4de4e9b228
+          name: 'App connections'
+          type: DEPENDENT
+          key: 'zweep.ws.connections'
+          delay: '0'
+          description: 'Open /v1/stream sessions on this node.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_ws_connections'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: ws
+        - uuid: 3eca9efab19e4136af7ba8c177d868fb
+          name: 'Devices online'
+          type: DEPENDENT
+          key: 'zweep.devices.online'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_devices{state="online"}'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: devices
+        - uuid: 2242ada899a242e8abc87306564f2d86
+          name: 'Devices offline'
+          type: DEPENDENT
+          key: 'zweep.devices.offline'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_devices{state="offline"}'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: devices
+        - uuid: f318ce85f41844cfa142c9edf773f1a3
+          name: 'Devices unreachable'
+          type: DEPENDENT
+          key: 'zweep.devices.unreachable'
+          delay: '0'
+          description: 'Devices without contact for longer than the heartbeat threshold: their users may not receive alarms.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_devices{state="unreachable"}'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: devices
+        - uuid: a02080050fbc4b41a2f75caa85d5b175
+          name: 'Messages stored'
+          type: DEPENDENT
+          key: 'zweep.messages.stored'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_messages_stored'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: messages
+        - uuid: b6a6fd4c1ea44442ad532b6f8c95c7d1
+          name: 'Time since the last accepted webhook'
+          type: DEPENDENT
+          key: 'zweep.ingest.age'
+          delay: '0'
+          value_type: FLOAT
+          units: s
+          description: 'Seconds since Zabbix last delivered an alarm to Zweep. -1 until the first alarm after a start.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_ingest_last_success_timestamp'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+            - type: JAVASCRIPT
+              parameters:
+                - "var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));"
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: ingest
+        - uuid: 3bba36d4a9b14fabadabc1577d731539
+          name: 'Webhook calls rejected'
+          type: DEPENDENT
+          key: 'zweep.webhook.rejected'
+          delay: '0'
+          description: 'Webhook calls refused since the previous check (wrong secret, unknown source or recipient, address not allowed, invalid data).'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_webhook_requests_total{result!~"accepted|duplicate|repeat"}'
+                - function
+                - sum
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: webhook
+        - uuid: 1b14e992bc8f4294a302565b8cf97b8d
+          name: 'Events received from two sources'
+          type: DEPENDENT
+          key: 'zweep.webhook.duplicate_source'
+          delay: '0'
+          description: 'Events also received from another source since the previous check: the same Zabbix configured twice.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_webhook_duplicate_source_total'
+                - function
+                - sum
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: webhook
+        - uuid: 1b7a3233070b4430a493616b1bd8762d
+          name: 'Authentication failures'
+          type: DEPENDENT
+          key: 'zweep.auth.failures'
+          delay: '0'
+          description: 'Failed logins and invalid tokens since the previous check, all surfaces.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_auth_failures_total'
+                - function
+                - sum
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: auth
+        - uuid: 13e418a80dc64099a2b989b80bfcd18b
+          name: 'Addresses blocked'
+          type: DEPENDENT
+          key: 'zweep.banned.ips'
+          delay: '0'
+          description: 'Addresses blocked after repeated authentication failures.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_banned_ips'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: banned
+        - uuid: fdd60c32f26d46ada934c445c4c20200
+          name: 'Database errors'
+          type: DEPENDENT
+          key: 'zweep.db.errors'
+          delay: '0'
+          description: 'Database errors in the background jobs and app sessions since the previous check.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_db_errors_total'
+                - value
+                - ''
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: db
+        - uuid: a4b9ce4f7c2a4551a1e687470ba4d30b
+          name: 'Acknowledgements waiting for Zabbix'
+          type: DEPENDENT
+          key: 'zweep.ack.pending'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_ack_pending'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: ack
+        - uuid: 9a6e89bc120f4a0ca13b21a124052ad6
+          name: 'HTTPS certificate: time to expiry'
+          type: DEPENDENT
+          key: 'zweep.tls.cert.expiry'
+          delay: '0'
+          value_type: FLOAT
+          units: s
+          description: '-1 when a reverse proxy provides HTTPS (HTTPS mode Off).'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_tls_cert_expiry_seconds'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: tls
+        - uuid: 7a29f6620c754bf3a7396cf9ea473565
+          name: 'HTTPS certificate: renewal failing'
+          type: DEPENDENT
+          key: 'zweep.tls.error'
+          delay: '0'
+          description: '1 if the last attempt to obtain or renew the certificate failed.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_tls_error'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: tls
+        - uuid: 999a1dd62ce14be5a0b6ab8ac0fc3767
+          name: 'Backups: scheduled'
+          type: DEPENDENT
+          key: 'zweep.backup.enabled'
+          delay: '0'
+          description: '1 if scheduled backups are configured on this node.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_backup_enabled'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: backup
+        - uuid: 9f2d5a9b1a9b4dffa435303b0cefc46d
+          name: 'Backups: time since the last successful one'
+          type: DEPENDENT
+          key: 'zweep.backup.age'
+          delay: '0'
+          value_type: FLOAT
+          units: s
+          description: '-1: no successful backup yet.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_backup_last_success_timestamp'
+                - value
+                - ''
+            - type: JAVASCRIPT
+              parameters:
+                - "var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));"
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: backup
+        - uuid: eee9febc099541d7abdc73cca71e71bb
+          name: 'Backups: last one failed'
+          type: DEPENDENT
+          key: 'zweep.backup.failed'
+          delay: '0'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_backup_last_failed'
+                - value
+                - ''
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: backup
+        - uuid: 5e6d366dfff547e3a6ca893969dfad39
+          name: 'Time since the last retention run'
+          type: DEPENDENT
+          key: 'zweep.retention.age'
+          delay: '0'
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_retention_last_run_timestamp'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+            - type: JAVASCRIPT
+              parameters:
+                - "var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));"
+          master_item:
+            key: zweep.metrics
+          tags:
+            - tag: component
+              value: retention
+      discovery_rules:
+        - uuid: 635d2093d4b6477bafb282310007ee24
+          name: 'Sources'
+          type: DEPENDENT
+          key: zweep.sources.discovery
+          delay: '0'
+          lifetime: 7d
+          description: 'One set of items for each source (Zabbix instance) whose API is configured in Zweep.'
+          item_prototypes:
+            - uuid: cb85f1c264fe4f89a013dcd88ca91129
+              name: 'Source {#SOURCE}: Zabbix API not answering'
+              type: DEPENDENT
+              key: 'zweep.source.stale[{#SOURCE}]'
+              delay: '0'
+              description: '1 if the last poll of the Zabbix API of this source failed.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'zweep_projection_stale{source="{#SOURCE}"}'
+                    - value
+                    - ''
+              master_item:
+                key: zweep.metrics
+              tags:
+                - tag: component
+                  value: source
+            - uuid: e886fb49cd254b5ba3ffcd8036634e84
+              name: 'Source {#SOURCE}: time since the last successful poll'
+              type: DEPENDENT
+              key: 'zweep.source.poll.age[{#SOURCE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'zweep_zbx_poll_last_success_timestamp{source="{#SOURCE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '-1'
+                - type: JAVASCRIPT
+                  parameters:
+                    - "var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));"
+              master_item:
+                key: zweep.metrics
+              tags:
+                - tag: component
+                  value: source
+            - uuid: 0ec416f5cd9545a5a7371b00bed59c9c
+              name: 'Source {#SOURCE}: poll duration'
+              type: DEPENDENT
+              key: 'zweep.source.poll.duration[{#SOURCE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'zweep_zbx_poll_duration_seconds{source="{#SOURCE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '-1'
+              master_item:
+                key: zweep.metrics
+              tags:
+                - tag: component
+                  value: source
+            - uuid: 85cd27752e0849b5a80b4a4ffe7b1240
+              name: 'Source {#SOURCE}: problems in the list'
+              type: DEPENDENT
+              key: 'zweep.source.problems[{#SOURCE}]'
+              delay: '0'
+              value_type: FLOAT
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'zweep_projection_problems{source="{#SOURCE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '-1'
+              master_item:
+                key: zweep.metrics
+              tags:
+                - tag: component
+                  value: source
+            - uuid: 0cacd501f022451da694e79cec5832ec
+              name: 'Source {#SOURCE}: API token, time to expiry'
+              type: DEPENDENT
+              key: 'zweep.source.token.expiry[{#SOURCE}]'
+              delay: '0'
+              value_type: FLOAT
+              units: s
+              description: '-1 when no expiry date is set for the token in Zweep.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'zweep_zbx_token_expiry_seconds{source="{#SOURCE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '-1'
+              master_item:
+                key: zweep.metrics
+              tags:
+                - tag: component
+                  value: source
+          trigger_prototypes:
+            - uuid: 2a376ac573a04677a064b05826c3db6f
+              expression: 'min(/Zweep by HTTP/zweep.source.stale[{#SOURCE}],5m)=1'
+              name: 'Zweep: source {#SOURCE}: Zabbix API not answering'
+              priority: AVERAGE
+              description: 'Zweep cannot read the problems of this Zabbix: the Problems tab of the app shows old data and acknowledgements wait.'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: d98158e370bc49cbad9164ee95c959ec
+              expression: 'last(/Zweep by HTTP/zweep.source.token.expiry[{#SOURCE}])>=0 and last(/Zweep by HTTP/zweep.source.token.expiry[{#SOURCE}])<{$ZWEEP.TOKEN.EXPIRY.WARN}'
+              name: 'Zweep: source {#SOURCE}: API token expires soon'
+              priority: WARNING
+              tags:
+                - tag: scope
+                  value: availability
+          master_item:
+            key: zweep.metrics
+          lld_macro_paths:
+            - lld_macro: '{#SOURCE}'
+              path: '$.labels.source'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - zweep_projection_stale
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+      tags:
+        - tag: class
+          value: application
+        - tag: target
+          value: zweep
+      macros:
+        - macro: '{$ZWEEP.URL}'
+          value: 'https://zweep.example.com:8080'
+          description: 'Public URL of Zweep (the one of the media type), without path'
+        - macro: '{$ZWEEP.METRICS.URL}'
+          value: 'http://zweep.example.com:9464'
+          description: 'URL of the metrics listener (ZWEEP_METRICS_LISTEN_HTTP), without path'
+        - macro: '{$ZWEEP.METRICS.TOKEN}'
+          description: 'Bearer token of the metrics listener; empty when only the allow-list protects it'
+        - macro: '{$ZWEEP.USERS.ONLINE.MIN}'
+          value: '1'
+          description: 'Users that must have a device online'
+        - macro: '{$ZWEEP.PENDING.AGE.MAX}'
+          value: '5m'
+        - macro: '{$ZWEEP.AUTH.FAILURES.MAX}'
+          value: '20'
+          description: 'Authentication failures in 10 minutes'
+        - macro: '{$ZWEEP.CERT.EXPIRY.WARN}'
+          value: '14d'
+        - macro: '{$ZWEEP.TOKEN.EXPIRY.WARN}'
+          value: '30d'
+        - macro: '{$ZWEEP.BACKUP.AGE.MAX}'
+          value: '36h'
+  triggers:
+    - uuid: afbb573db413431caea274af6b493ee3
+      expression: 'last(/Zweep by HTTP/zweep.health)<>200 and last(/Zweep by HTTP/zweep.health,#2)<>200'
+      name: 'Zweep: health check failing'
+      priority: HIGH
+      description: 'GET /v1/health does not answer 200: Zweep cannot reach its database, or is stalled. Alarms are not accepted; Zabbix marks them as failed and escalations go on with the next step.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: fbed52cbcbdb4e3faef4c0e8884d508e
+      expression: 'nodata(/Zweep by HTTP/zweep.health,5m)=1'
+      name: 'Zweep: not reachable'
+      priority: HIGH
+      description: 'No answer from {$ZWEEP.URL}/v1/health for 5 minutes (Zweep down, network, reverse proxy).'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: d646e0d70d59419ba377f9f80c8fc2aa
+      expression: 'nodata(/Zweep by HTTP/zweep.up,10m)=1'
+      name: 'Zweep: metrics not available'
+      priority: WARNING
+      description: 'No data from {$ZWEEP.METRICS.URL}/metrics: the metrics listener is not enabled or not reachable, or the token is wrong. The other triggers of this template, except the health ones, depend on it.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 46cc971cecd54e7eacd1b1c06984ee31
+      expression: 'last(/Zweep by HTTP/zweep.uptime)<10m'
+      name: 'Zweep: restarted'
+      priority: INFO
+      description: 'The server started less than 10 minutes ago.'
+      tags:
+        - tag: scope
+          value: notice
+    - uuid: c45f2ffaeea943d1a97202045c829f7e
+      expression: 'last(/Zweep by HTTP/zweep.version,#1)<>last(/Zweep by HTTP/zweep.version,#2) and length(last(/Zweep by HTTP/zweep.version))>0'
+      name: 'Zweep: version changed'
+      priority: INFO
+      tags:
+        - tag: scope
+          value: notice
+    - uuid: 591743dd4cf64dfead8d3c6ba737c848
+      expression: 'min(/Zweep by HTTP/zweep.outbox.reachable,5m)>0 and last(/Zweep by HTTP/zweep.pending.age)>{$ZWEEP.PENDING.AGE.MAX}'
+      name: 'Zweep: deliveries stuck'
+      priority: HIGH
+      description: 'Messages wait for more than {$ZWEEP.PENDING.AGE.MAX} for devices that are reachable.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 8789c71c126e4a39a02081f4e13ef4ea
+      expression: 'min(/Zweep by HTTP/zweep.deliveries.unconfirmed,10m)>0'
+      name: 'Zweep: deliveries not confirmed'
+      priority: WARNING
+      description: 'Some deliveries exhausted their retries without a receipt from the phone.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: e1a388e746174073a98f6dfc8207c826
+      expression: 'max(/Zweep by HTTP/zweep.users.online,15m)<{$ZWEEP.USERS.ONLINE.MIN}'
+      name: 'Zweep: too few users online'
+      priority: AVERAGE
+      description: 'Fewer than {$ZWEEP.USERS.ONLINE.MIN} users have a device connected: alarms may reach nobody.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 8fa8b2f98b5c4725a5eb1cc916f86b84
+      expression: 'min(/Zweep by HTTP/zweep.devices.unreachable,30m)>0'
+      name: 'Zweep: devices unreachable'
+      priority: INFO
+      description: 'Some devices have not been in contact for a long time (Devices page of the dashboard).'
+      tags:
+        - tag: scope
+          value: notice
+    - uuid: fbe35acca8ee4b25aee131b06172dece
+      expression: 'sum(/Zweep by HTTP/zweep.db.errors,5m)>0'
+      name: 'Zweep: database errors'
+      priority: AVERAGE
+      description: 'Database errors in the last 5 minutes (log of Zweep).'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 4fc5fc4497274712a5980343ce74b987
+      expression: 'sum(/Zweep by HTTP/zweep.webhook.rejected,15m)>0'
+      name: 'Zweep: webhook calls rejected'
+      priority: WARNING
+      description: 'Zweep refused alarms from Zabbix in the last 15 minutes: check the action log in Zabbix and the Logs page of the dashboard.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 03dca00d4dfd488caf58f5e7999ab29b
+      expression: 'sum(/Zweep by HTTP/zweep.webhook.duplicate_source,1h)>0'
+      name: 'Zweep: same Zabbix configured as two sources'
+      priority: WARNING
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 06e60bcc90424627a809612144daadf9
+      expression: 'sum(/Zweep by HTTP/zweep.auth.failures,10m)>{$ZWEEP.AUTH.FAILURES.MAX}'
+      name: 'Zweep: many authentication failures'
+      priority: WARNING
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 0780deadeb974e51aebfdab950b39f57
+      expression: 'min(/Zweep by HTTP/zweep.banned.ips,5m)>0'
+      name: 'Zweep: addresses blocked'
+      priority: INFO
+      description: 'Somebody is guessing passwords or tokens.'
+      tags:
+        - tag: scope
+          value: notice
+    - uuid: b49ee90b5c0b4a2ca0951814190835b7
+      expression: 'min(/Zweep by HTTP/zweep.ack.pending,10m)>0'
+      name: 'Zweep: acknowledgements not reaching Zabbix'
+      priority: WARNING
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 0368906bc46a4bbba1aba6e423074198
+      expression: 'last(/Zweep by HTTP/zweep.tls.cert.expiry)>=0 and last(/Zweep by HTTP/zweep.tls.cert.expiry)<{$ZWEEP.CERT.EXPIRY.WARN}'
+      name: 'Zweep: HTTPS certificate expires soon'
+      priority: WARNING
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: cc3e963b29854b08a90121aa80d52fc4
+      expression: 'min(/Zweep by HTTP/zweep.tls.error,1h)=1'
+      name: 'Zweep: HTTPS certificate renewal failing'
+      priority: AVERAGE
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: abf4d7c217dd4bfdab130935cbdc5fa6
+      expression: 'last(/Zweep by HTTP/zweep.backup.enabled)=1 and (last(/Zweep by HTTP/zweep.backup.age)>{$ZWEEP.BACKUP.AGE.MAX} or (last(/Zweep by HTTP/zweep.backup.age)<0 and last(/Zweep by HTTP/zweep.uptime)>{$ZWEEP.BACKUP.AGE.MAX}))'
+      name: 'Zweep: no backup for too long'
+      priority: AVERAGE
+      description: 'Scheduled backups are configured, but none succeeded in the last {$ZWEEP.BACKUP.AGE.MAX}.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 06b1036638804977aa0a0ec02c32eaa8
+      expression: 'last(/Zweep by HTTP/zweep.backup.failed)=1'
+      name: 'Zweep: last backup failed'
+      priority: AVERAGE
+      tags:
+        - tag: scope
+          value: availability

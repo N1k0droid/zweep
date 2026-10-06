@@ -57,10 +57,13 @@ func NormalizeText(s string) (string, error) {
 	return out, nil
 }
 
+// AuthorPrefix starts the first line of an acknowledgement written from the app
+const AuthorPrefix = "Zweep User: "
+
 // Compose builds the message stored in Zabbix; the prefix is always set by the server
 func Compose(username, text string) (string, error) {
-	// Two lines: the app user, then the text typed in the app (owner request 2026-09-30)
-	msg := fmt.Sprintf("user: %s\n%s", username, text)
+	// Two lines: the app user, then the text typed in the app
+	msg := fmt.Sprintf("%s%s\n%s", AuthorPrefix, username, text)
 	if utf8.RuneCountInString(msg) > MaxComposed {
 		return "", ErrInvalidText
 	}

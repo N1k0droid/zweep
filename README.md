@@ -55,6 +55,13 @@ escalation goes on with its next step.
 
 <p align="center"><img src="docs/assets/architecture.svg" alt="Zabbix sends alarms to the Zweep server (media type webhook) and is read through its API; the server delivers alarms and the problem list to the Android app over a WebSocket and receives receipts and acknowledgements; PostgreSQL stores the state; the dashboard runs on the admin port." width="100%"></p>
 
+<p align="center">
+  <img src="docs/assets/screenshots/app-alerts.png" alt="The Alerts tab of the app: alarms with severity, host, source and state" width="30%">
+  <img src="docs/assets/screenshots/app-problems.png" alt="The Problems tab: open problems in Zabbix within the operator's perimeter" width="30%">
+  <img src="docs/assets/screenshots/app-detail.png" alt="The detail of a problem: host, tags, history and acknowledgement" width="30%">
+</p>
+<p align="center"><img src="docs/assets/screenshots/dashboard-status.png" alt="The Status page of the dashboard: warnings, counters, Zabbix sources, backup and HTTPS" width="100%"></p>
+
 ## Features
 
 - **Reliable delivery**: every alarm is stored, numbered and confirmed by the phone; after a network
@@ -80,30 +87,61 @@ escalation goes on with its next step.
 Requirements: Docker with Compose on Linux, a Zabbix 7.0+ server that can reach Zweep, Android 10+
 phones, a DNS name for Zweep (needed for a trusted certificate).
 
+Before you start, check Docker on the server:
+
 ```bash
-git clone https://github.com/N1k0droid/zweep.git && cd zweep
-cp .env.example .env          # set ZWEEP_SERVICE_URLS: the address phones and Zabbix use
+docker --version && docker compose version    # Docker Engine with the Compose plugin, not the old docker-compose
+```
+
+If the server is itself a system container (LXC and similar), its host must allow nested containers.
+Run the commands below as `root` (`sudo -i` first, if you use sudo: with a plain `sudo` the `>`
+redirections fail).
+
+```bash
+git clone https://github.com/N1k0droid/zweep.git /opt/zweep && cd /opt/zweep
+cp .env.example .env          # then edit it: ZWEEP_SERVICE_URLS is the address phones and Zabbix use
 
 mkdir -p secrets backups
-head -c 32 /dev/urandom > secrets/master.key          # encrypts secrets at rest: keep a copy offline
-openssl rand -hex 24 > secrets/postgres-password
+head -c 32 /dev/urandom > secrets/master.key          # master key: encrypts the secrets and the backups
+openssl rand -hex 24 > secrets/postgres-password      # password of the database of the stack
 printf 'postgres://zweep:%s@db:5432/zweep?sslmode=disable' "$(cat secrets/postgres-password)" > secrets/database-url
-chmod 600 secrets/*
-sudo chown 65532:65532 backups secrets/master.key secrets/database-url   # the container user
+chmod 600 secrets/*                                    # readable by their owner only
+chown 65532:65532 backups secrets/master.key secrets/database-url   # the user of the container
 
 docker compose up -d
-docker compose logs zweep | grep setup     # one-time setup token for the first admin
 ```
+
+⚠ Copy `secrets/master.key` to a safe place now, **away from the backups**: without it the backups
+cannot be restored.
+
+Check the first start:
+
+```bash
+docker compose ps                          # zweep and db become "healthy" in a few seconds
+curl -s http://127.0.0.1:8080/v1/health    # {"healthy":true}
+docker compose logs zweep | grep -o 'zws_[A-Za-z0-9_-]*' | tail -1    # one-time setup token for the first admin
+```
+
+`http://<server>:8080/v1/health` must answer from another PC too: if it answers only on the server, a
+firewall is in the way. The setup token is valid for one hour; `docker compose restart zweep` prints
+a new one as long as no admin exists.
 
 Then:
 
-1. **First admin**: open `http://127.0.0.1:8081/admin/` on the Docker host (the dashboard listens
-   only on the host loopback; use an SSH tunnel from your PC) and enter the setup token.
-2. **HTTPS**: Dashboard → Settings → HTTPS ([manual, chapter 5](docs/manual/05-https.md)).
+1. **First admin**: the dashboard listens only on the loopback of the Docker host. From your PC open
+   an SSH tunnel, `ssh -N -L 8081:127.0.0.1:8081 user@<server>` (it stays open and shows nothing),
+   then open `http://127.0.0.1:8081/admin/` and enter the setup token. Create a second admin before
+   you turn on two-step verification. To reach the dashboard from the LAN instead, or if the tunnel
+   is refused, see [chapter 3.6](docs/manual/03-installation.md#36-reaching-the-dashboard-safely).
+2. **HTTPS**: Dashboard → Settings → HTTPS ([manual, chapter 5](docs/manual/05-https.md)). Behind a
+   reverse proxy choose *No HTTPS here* and set `ZWEEP_TRUSTED_PROXIES`.
 3. **Zabbix**: create a source, import the media type from Dashboard → Download, add an action
-   with escalation ([chapter 6](docs/manual/06-zabbix.md)).
+   with escalation; then the service user for the Problems tab and the acknowledgements
+   ([chapter 6](docs/manual/06-zabbix.md)).
 4. **Phones**: create the operators, scan the download QR code to install the app, then the
    activation QR code ([chapters 7](docs/manual/07-users.md) and [8](docs/manual/08-app.md)).
+5. **Monitor Zweep**: import the Zabbix template of Dashboard → Download and notify its problems by
+   e-mail or SMS, not through Zweep ([chapter 10.1](docs/manual/10-operations.md)).
 
 Images: `ghcr.io/n1k0droid/zweep` and the mirror `docker.io/n1k0droid/zweep` (linux/amd64,
 linux/arm64). The signed APK is also attached to every [release](https://github.com/N1k0droid/zweep/releases).
@@ -115,7 +153,8 @@ linux/arm64). The signed APK is also attached to every [release](https://github.
 | Zabbix server → Zweep | public port (`ZWEEP_PUBLIC_PORT`, 8080 or 443) | media type webhook |
 | Phones → Zweep | public port | alarms (WebSocket), app API, app download |
 | Zweep → Zabbix frontend | 80 / 443 | problem list and acknowledgements (Zabbix API) |
-| Your PC → Docker host | SSH, then `127.0.0.1:8081` | dashboard (never published) |
+| Your PC → Docker host | SSH, then `127.0.0.1:8081` | dashboard (not published by default) |
+| Zabbix server → Zweep (optional) | metrics port, e.g. 9464 | monitoring of Zweep (template in Download) |
 | Zweep → Internet (optional) | 443 | Let's Encrypt or your ACME CA; DNS provider API for DNS-01 |
 | Internet → Zweep (optional) | 80 | Let's Encrypt HTTP-01 challenge only |
 

@@ -30,7 +30,7 @@ func TestNormalizeText(t *testing.T) {
 func TestCompose(t *testing.T) {
 	m, err := Compose("mario", "on it")
 	require.Nil(t, err)
-	require.Equal(t, "user: mario\non it", m)
+	require.Equal(t, "Zweep User: mario\non it", m)
 	// Longest username (64) and text (1000) stay under 2048
 	_, err = Compose(strings.Repeat("u", 64), strings.Repeat("é", MaxTextLength))
 	require.Nil(t, err)

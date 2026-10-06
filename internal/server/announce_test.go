@@ -175,4 +175,6 @@ func TestDashboard_Downloads(t *testing.T) {
 	require.NotContains(t, pg.body, secret)
 	require.Equal(t, 404, b.get("/admin/downloads/media_zweep.yaml?source=nope").code)
 	require.Equal(t, zabbix.Script, b.get("/admin/downloads/zweep-mediatype.js").body)
+	require.Contains(t, pg.body+b.get("/admin/downloads").body, `href="/admin/downloads/template_zweep.yaml"`)
+	require.Equal(t, string(zabbix.Template), b.get("/admin/downloads/template_zweep.yaml").body)
 }

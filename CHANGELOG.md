@@ -2,6 +2,32 @@
 
 All notable changes to Zweep are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.0.3 — 2026-10-06
+
+- **Fixed: the server could stop answering** (health 503, every request waiting) with three or more
+  sources whose Zabbix API is configured: the jobs that hold a database lock (source polls, orphan
+  alerts, retention, backup, certificates) used the same connection pool as everything else and could
+  exhaust it. Locks now have their own connections, the pool is larger (10 by default,
+  `pool_max_conns` in the database URL), and a pool that stays exhausted for 2 minutes stops the
+  server so that Docker or systemd restart it. On 1.0.2, add `&pool_max_conns=20` to the database URL
+  until you upgrade.
+- **Zabbix template to monitor Zweep** (`zabbix/template_zweep.yaml`, Dashboard → Download): health,
+  deliveries, devices, database errors, rejected webhooks, certificate, backups and, per source, the
+  Zabbix API and the token expiry. `compose.yaml` and `.env.example` gain the metrics listener.
+- `ZWEEP_ADMIN_ALLOWED_IPS`: allow-list of the dashboard and admin API, for a dashboard published on
+  the LAN.
+- Acknowledgements written in Zabbix start with `Zweep User: <name>` (was `user: <name>`); the
+  earlier form is still recognised in the history.
+- App: in the Problems tab a **filter of the sources** in the top bar and the search field behind
+  the search icon, as in Alerts; in Settings the account and the state of a server are on their own
+  lines (a long state no longer squeezed the account).
+- Dashboard: saving a source API as *Not used* no longer says "verified", and refuses a token typed
+  in (it would be discarded); the columns of a page end at the same height.
+- Docs: installation rewritten after a walkthrough on a fresh server (checks before and after the
+  start, what each command does, SSH tunnel and its errors, dashboard on the LAN, a worked reverse
+  proxy setup); the Zabbix role of the service user corrected (one UI element is required, the
+  two actions are needed for acknowledgements, `trigger.get` is not used).
+
 ## 1.0.2 — 2026-10-05
 
 Server only; the app stays 1.0.1.

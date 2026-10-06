@@ -404,6 +404,13 @@ func TestDashboard_SourcesChannelsSettingsAudit(t *testing.T) {
 	// The API check reports an unreachable Zabbix
 	p = admin.post("/admin/sources/zbx-dash/api", url.Values{"csrf": {token}, "mode": {"read"}, "url": {"http://127.0.0.1:9/api_jsonrpc.php"}, "token": {"x"}})
 	require.Equal(t, 422, p.code)
+	// "Not used" with a token typed in is refused (the token would be discarded); without, it says so
+	p = admin.post("/admin/sources/zbx-dash/api", url.Values{"csrf": {token}, "mode": {"disabled"}, "token": {"x"}})
+	require.Equal(t, 400, p.code)
+	require.Contains(t, p.body, "it would be discarded")
+	p = admin.post("/admin/sources/zbx-dash/api", url.Values{"csrf": {token}, "mode": {"disabled"}})
+	require.Contains(t, p.body, "is not used")
+	require.NotContains(t, p.body, "verified and saved")
 	// Managers read sources, change nothing
 	require.Equal(t, 200, mgr.get("/admin/sources/zbx-dash").code)
 	require.NotContains(t, mgr.get("/admin/sources/zbx-dash").body, `action="/admin/sources/zbx-dash/api"`)

@@ -260,6 +260,7 @@
     <string name="filter_apply">Applica</string>
     <string name="filter_hostgroup_all">Nessun host group selezionato: si vedono tutti.</string>
     <string name="filter_hostgroup_selected">%1$d selezionati</string>
+    <string name="filter_sources">Sorgenti</string>
     <string name="sound_restore">Ripristina suono Zweep</string>
     <string name="sound_restore_confirm">Il canale torna al suono Zweep della sua severity. Android non permette di cambiare il suono di un canale, quindi il canale viene ricreato: le altre impostazioni fatte a mano (vibrazione, eccezione a Non disturbare…) tornano ai valori predefiniti.</string>
     <string name="about_author">Autore</string>

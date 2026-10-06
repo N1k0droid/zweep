@@ -13,7 +13,11 @@ import (
 )
 
 func TestAppAuthor(t *testing.T) {
-	name, text, ok := AppAuthor("user: mario\nsto verificando\nsecond line")
+	name, text, ok := AppAuthor("Zweep User: Nicola@S24U\nsto verificando")
+	require.True(t, ok)
+	require.Equal(t, "Nicola@S24U", name)
+	require.Equal(t, "sto verificando", text)
+	name, text, ok = AppAuthor("user: mario\nsto verificando\nsecond line") // format of 1.0.2 and earlier
 	require.True(t, ok)
 	require.Equal(t, "mario", name)
 	require.Equal(t, "sto verificando\nsecond line", text)

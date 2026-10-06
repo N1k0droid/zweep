@@ -24,7 +24,7 @@ type RetentionResult struct {
 // Purge applies the retention settings in batches. Only one node runs it at a time.
 func (s *Store) Purge(ctx context.Context, st Settings) (*RetentionResult, error) {
 	res := &RetentionResult{Deleted: map[string]int64{}}
-	conn, err := s.Pool.Acquire(ctx)
+	conn, err := s.LockConn(ctx)
 	if err != nil {
 		return nil, err
 	}

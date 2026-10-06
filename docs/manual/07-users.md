@@ -6,14 +6,14 @@
 |---|---|---|
 | **admin** | dashboard, admin API | everything: accounts, sources, channels, user groups, HTTPS, settings, backups, logs |
 | **manager** | dashboard | assign perimeters, user groups and custom channels to operators; create and edit user groups; assign operators to custom channels; send test messages and announcements; force-close alerts; read every page (except Logging). Cannot create, change or delete accounts, sources or channels, activate or revoke devices, nor change settings, HTTPS or backups. |
-| **operator** | the app only | receive alarms; see problems in his perimeter; acknowledge and force-close if allowed |
+| **operator** | the app only | receive alarms; see problems in their perimeter; acknowledge and force-close if allowed |
 
 Admins and managers **do not receive alarms**: a person who is both an administrator and on call has two
 accounts (e.g. `admin.rossi` for the dashboard and `mario.rossi` for the app). This keeps the powerful
 account off the phone.
 
-The **superadmin** is the first admin created: only he can reset the two-step verification of the
-others, and he cannot be deleted, disabled or demoted (chapter 3.5). An admin can enable two-step
+The **superadmin** is the first admin created: only this account can reset the two-step verification of the
+others, and it cannot be deleted, disabled or demoted (chapter 3.5). An admin can enable two-step
 verification only while another active admin exists.
 
 Removing an admin (delete, disable, or change of role) when only **one** active admin would remain, and
@@ -46,8 +46,10 @@ On the user page you can then:
 
 ## 7.3 Perimeter: what the operator sees in Problems
 
-The perimeter decides what an operator sees in the **Problems** tab, and whether he can act on it.
-It does **not** decide which notifications he receives: that is the job of the Zabbix actions, and
+![The page of an operator: perimeter, account, groups, channels, password and devices](../assets/screenshots/dashboard-user.png)
+
+The perimeter decides what an operator sees in the **Problems** tab, and whether they can act on it.
+It does **not** decide which notifications they receive: that is the job of the Zabbix actions, and
 whatever Zabbix sends is always delivered.
 
 | Element | Meaning |
@@ -60,7 +62,7 @@ whatever Zabbix sends is always delivered.
 
 Without a perimeter (and without user groups) the Problems tab is empty.
 
-⚠ If Zabbix sends an operator a notification **outside** his perimeter, it is delivered anyway (never
+⚠ If Zabbix sends an operator a notification **outside** their perimeter, it is delivered anyway (never
 drop an alarm), but Zweep counts it as a configuration mismatch (`zweep_webhook_outside_filter_total`,
 warning in the audit). Usually it means the action in Zabbix and the perimeter in Zweep disagree.
 
@@ -74,8 +76,8 @@ With many operators, give permissions to **groups** instead of one by one. **Use
 - **permissions**: sources, host groups, severities, *acknowledge*, *close*;
 - **custom channels** given to the members.
 
-The rule is **additive**: an operator gets his own perimeter **plus** the permissions of every group he
-belongs to. A group never takes anything away. In the operator page, permissions coming from groups are
+The rule is **additive**: an operator gets their own perimeter **plus** the permissions of every group they
+belong to. A group never takes anything away. In the operator page, permissions coming from groups are
 shown as grey, non-editable labels with the group name ("from: DB team"), so it is easy to see where
 each right comes from.
 
@@ -137,7 +139,7 @@ Three ways, from the most to the least suggested:
 
 | Way | Who starts it | What the operator does | Needs |
 |---|---|---|---|
-| **QR code** | admin: **Users → operator → Activation code** | scans the QR code with the phone camera (or Google Lens): Zweep opens with everything filled in, he confirms | `ZWEEP_SERVICE_URLS` set |
+| **QR code** | admin: **Users → operator → Activation code** | scans the QR code with the phone camera (or Google Lens): Zweep opens with everything filled in, and the operator confirms | `ZWEEP_SERVICE_URLS` set |
 | **Activation code** | admin, same button | in the app: **Settings → + Add server → Activation code**: server URL and code | — |
 | **Username and password** | the operator | **+ Add server → Username and password** | a password set for the operator |
 

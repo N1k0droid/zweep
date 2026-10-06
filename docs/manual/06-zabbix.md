@@ -12,6 +12,23 @@ Problems tab, acknowledgements and the automatic close of orphan alerts.
 | 5 | Zabbix | create the **service user** (role, group, token) |
 | 6 | Zweep | configure the **API** of the source |
 
+**Check the network first**, in both directions (each command on the machine named):
+
+```bash
+# on the Zabbix server: can it deliver alarms to Zweep?
+curl -s https://zweep.corp.example.com:8080/v1/health        # {"healthy":true}
+
+# on the Zweep host: can Zweep read the Zabbix API? (needed for steps 5-6)
+curl -s -X POST -H 'Content-Type: application/json-rpc' \
+  -d '{"jsonrpc":"2.0","method":"apiinfo.version","params":{},"id":1}' \
+  https://zabbix.corp.example.com/api_jsonrpc.php             # {"jsonrpc":"2.0","result":"7.0.x","id":1}
+```
+
+These are Linux shell commands: in the Windows command prompt or PowerShell the quoting is different
+and they fail. If the Zabbix server cannot reach the public name of Zweep (a router that does not
+route its own public address back inside), use the internal address of Zweep in `server_url`.
+An HTML page *404 Not Found* from the second command means a wrong path: see step 6.
+
 ## 6.1 Step 1 — Create the source
 
 **Dashboard → Sources → New source** (admin):
@@ -30,7 +47,11 @@ use **Generate a new secret** and update the media type at once: from that momen
 refused.
 
 💡 Fill in *Allowed webhook addresses* with the address(es) of the Zabbix server (all nodes, for a
-Zabbix HA cluster). A stolen secret is then useless from anywhere else.
+Zabbix HA cluster). A stolen secret is then useless from anywhere else. The address is the one Zweep
+**sees**: behind a reverse proxy listed in `ZWEEP_TRUSTED_PROXIES` it is the real address of Zabbix,
+but through a NAT it is the address of the router. If unsure, leave the field empty, send a test, read
+the address in **Logging** (`"path":"/v1/zabbix/webhook"`, field `ip`) and then fill it in; a wrong
+value shows in Zabbix as `HTTP 403 … ip_not_allowed`.
 
 Zweep refuses to configure the same Zabbix twice (same frontend/API URL under two identifiers): two
 sources for one Zabbix would deliver every alarm twice. If it happens anyway (for example via
@@ -187,6 +208,9 @@ others none.
 
 ## 6.5 Step 5 — The service user in Zabbix
 
+Create the three objects **in this order**: the role, the user group, then the user (the form of
+the user asks for both).
+
 Without a service user Zweep is a notification channel only. With it, the app also gets:
 
 - the **Problems** tab (open problems in the operator's perimeter, with details and history);
@@ -199,15 +223,18 @@ Without a service user Zweep is a notification channel only. With it, the app al
 | Setting | Value |
 |---|---|
 | User type | **User** (never Admin or Super admin) |
-| Access to UI elements | all **off**; *Default access to new UI elements* off |
+| Access to UI elements | only **Monitoring → Problems** on (Zabbix requires at least one element); all the others and *Default access to new UI elements* off. The user cannot log in anyway: frontend access is disabled in the group |
 | Access to services | none |
 | Access to modules | none |
 | API access | **on**, *Allow list* |
-| API methods, read mode | `problem.get`, `event.get`, `host.get`, `hostgroup.get`, `trigger.get` |
+| API methods, read mode | `problem.get`, `event.get`, `host.get`, `hostgroup.get` |
 | API methods, read and acknowledge mode | the above plus **`event.acknowledge`** |
-| Access to actions | all off, except *Acknowledge problems* and *Add problem comments* (only for read and acknowledge mode) |
+| Access to actions, read mode | all off |
+| Access to actions, read and acknowledge mode | **Acknowledge problems** and **Add problem comments** on, all the others off |
 
-`trigger.get` is used only for the trigger description and URL in the problem detail: it can be omitted.
+⚠ For acknowledgements the role needs **both** the API method `event.acknowledge` **and** the two
+actions. With the method alone the verification of step 6 is green, but Zabbix refuses every
+acknowledgement and the app shows *✗ Rejected* (chapter 11.5).
 
 ### User group "Zweep API" (Users → User groups)
 
@@ -219,7 +246,7 @@ Without a service user Zweep is a notification channel only. With it, the app al
 ### User "Zweep" (Users → Users)
 
 - Username `Zweep` (in the Zabbix history the acknowledgements made from the app appear as made by this
-  user, with the operator's name in the first line: `user: mario.rossi`)
+  user, with the operator's name in the first line: `Zweep User: mario.rossi`)
 - Group `Zweep API`, role `Zweep API`
 - A long random password that nobody needs to know (frontend access is disabled anyway)
 
@@ -237,10 +264,13 @@ Without a service user Zweep is a notification channel only. With it, the app al
 | Field | Example |
 |---|---|
 | Use of the API | *Not used: notifications only* / *Read: Problems list and detail* / *Read and acknowledge from the app* |
-| API URL | `https://zabbix.corp.example.com/api_jsonrpc.php` |
+| API URL | `https://zabbix.corp.example.com/api_jsonrpc.php`: the address of the frontend plus `/api_jsonrpc.php`. Zabbix installed from the distribution packages with Apache serves the frontend under `/zabbix`: then it is `http://zabbix.corp.example.com/zabbix/api_jsonrpc.php` |
 | API token of the service user | the token (stored encrypted, never shown again; leave empty to keep it) |
 | Token expiry (optional) | `2027-10-01` |
 | CA certificate (optional, PEM) | only for a Zabbix with a certificate from a private CA |
+
+Choose *Read* or *Read and acknowledge* **before** saving: with *Not used* the API is turned off and
+a token typed in is refused, so that it is not discarded by mistake.
 
 **Save and verify** checks, and shows in *Verification of the Zabbix API*:
 
@@ -260,8 +290,8 @@ unreachable, the app keeps showing the last list with a notice *Data not updated
 ## 6.7 Several Zabbix instances
 
 Repeat steps 1–6 for each Zabbix (e.g. `zbx-prod`, `zbx-lab`, `zbx-customerA`). An operator receives
-alarms from all the sources that send to his username; his perimeter (chapter 7.3) decides which of
-their problems he sees. Host groups with the same name in two sources are shown once in the dashboard
+alarms from all the sources that send to their username; the perimeter of the operator (chapter 7.3) decides which of
+those problems are shown. Host groups with the same name in two sources are shown once in the dashboard
 picker, with the source names.
 
 ## 6.8 Checklist

@@ -27,6 +27,16 @@
   {{else}}<p class="muted">{{.T "dl.no_sources"}}</p>{{end}}
 </section>
 </div>
+<section class="card" id="monitoring">
+  <h2>{{.T "dl.template"}}</h2>
+  <p class="muted small">{{.T "dl.template_hint"}}</p>
+  <ol class="small">
+    <li>{{.T "dl.template_step1"}}</li>
+    <li>{{.T "dl.template_step2"}}</li>
+    <li>{{.T "dl.template_step3"}}</li>
+  </ol>
+  <div class="actions"><a class="button primary" href="/admin/downloads/template_zweep.yaml" download>template_zweep.yaml</a></div>
+</section>
 <section class="card" id="app">
   <h2>{{.T "apk.title"}}</h2>
   {{if not (index $d "APKEnabled")}}

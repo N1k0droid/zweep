@@ -69,7 +69,26 @@ Requirements for the proxy:
 2. do not buffer responses on `/v1/stream`;
 3. set `X-Forwarded-For` and `X-Forwarded-Proto`;
 4. list the proxy in `ZWEEP_TRUSTED_PROXIES`;
-5. set `ZWEEP_SERVICE_URLS` to the **public** HTTPS address.
+5. set `ZWEEP_SERVICE_URLS` to the **public** HTTPS address;
+6. forward to the **public port** of Zweep (8080), never to the admin port (8081).
+
+With Docker, in `.env`:
+
+```ini
+ZWEEP_SERVICE_URLS=https://zweep.example.com:8443     # the address of the proxy, as phones and Zabbix see it
+ZWEEP_TRUSTED_PROXIES=192.168.10.2                    # the address of the proxy, as Zweep sees it
+```
+
+then `docker compose up -d`, and in the dashboard **Settings → HTTPS → No HTTPS here (reverse proxy)**.
+Check from outside the network:
+
+```bash
+curl -s https://zweep.example.com:8443/v1/health                                # {"healthy":true}
+curl -s -o /dev/null -w '%{http_code}\n' https://zweep.example.com:8443/admin/login   # 404
+```
+
+Proxies configured from a web interface (appliances, NAS, firewalls) often forward WebSocket only
+when it is enabled explicitly for the rule: without it the app activates but stays "not connected".
 
 ### nginx
 

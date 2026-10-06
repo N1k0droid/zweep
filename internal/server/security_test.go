@@ -31,6 +31,24 @@ func listeners(t *testing.T, e *coreEnv) (public, admin, metricsURL string) {
 	return p.URL, a.URL, m.URL
 }
 
+// ZWEEP_ADMIN_ALLOWED_IPS: the dashboard and the admin API answer only to the listed addresses and the
+// loopback; the public listener is not affected
+func TestSecurity_AdminAllowList(t *testing.T) {
+	e := newCoreEnv(t, func(c *config.Config) {
+		c.AdminAllowedIPs = []netip.Prefix{netip.MustParsePrefix("192.0.2.10/32"), netip.MustParsePrefix("198.51.100.0/24")}
+	})
+	public, admin, _ := listeners(t, e)
+	get := func(base, path, ip string) int {
+		return zwclient.Do(nil, "GET", base+path, nil, from(ip, nil)).Code
+	}
+	require.Equal(t, 403, get(admin, "/admin/login", "203.0.113.5"))
+	require.Equal(t, 403, get(admin, "/v1/admin/settings", "203.0.113.5"))
+	require.Equal(t, 200, get(admin, "/admin/login", "192.0.2.10"))
+	require.Equal(t, 200, get(admin, "/admin/login", "198.51.100.77"))
+	require.Equal(t, 200, get(admin, "/admin/login", "127.0.0.1"))
+	require.Equal(t, 200, get(public, "/v1/health", "203.0.113.5"), "the public listener is not filtered")
+}
+
 func from(ip string, h map[string]string) map[string]string {
 	out := map[string]string{"X-Forwarded-For": ip}
 	for k, v := range h {

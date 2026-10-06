@@ -102,7 +102,7 @@ func New(cfg *config.Config) (*Server, error) {
 		return fail(err)
 	}
 	// HTTPS (phase 8): certificates in the database, shared by the nodes
-	tm := tlsmgr.New(tlsmgr.NewStorage(st.Pool, box), selfSignedNames(cfg.ServiceURLs), func(ctx context.Context, name string, details map[string]any) {
+	tm := tlsmgr.New(tlsmgr.NewStorage(st.Pool, st.Locks, box), selfSignedNames(cfg.ServiceURLs), func(ctx context.Context, name string, details map[string]any) {
 		if err := st.Audit(ctx, store.AuditEntry{ActorType: store.ActorSystem, Action: name, Target: "https", Details: details}); err != nil {
 			slog.Warn("Cannot write audit entry", "component", "tls", "err", err)
 		}
@@ -187,6 +187,43 @@ func New(cfg *config.Config) (*Server, error) {
 	metrics.StartTime.Set(float64(time.Now().Unix()))
 	metrics.BuildInfo.WithLabelValues(cfg.Version, cfg.NodeID).Set(1)
 	return s, nil
+}
+
+// Pool watchdog: a work pool that stays exhausted stalls every request while the process looks alive
+// (health 503, no restart). After poolStallLimit Zweep stops with an error, so that the service
+// manager (Docker restart policy, systemd Restart=) starts it again.
+var (
+	poolCheckEvery = 15 * time.Second
+	poolStallLimit = 2 * time.Minute
+)
+
+func (s *Server) poolWatchdog(ctx context.Context, errc chan<- error) {
+	t := time.NewTicker(poolCheckEvery)
+	defer t.Stop()
+	var since time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if !s.store.Exhausted(ctx, 5*time.Second) {
+			since = time.Time{}
+			continue
+		}
+		metrics.DBErrors.Inc()
+		if since.IsZero() {
+			since = time.Now()
+			slog.Warn("Database pool exhausted", "component", "server", "max_conns", s.store.Pool.Stat().MaxConns())
+			continue
+		}
+		if time.Since(since) >= poolStallLimit {
+			slog.Error("Database pool exhausted: stopping, the service manager restarts Zweep", "component", "server",
+				"for", time.Since(since).Round(time.Second).String(), "max_conns", s.store.Pool.Stat().MaxConns())
+			errc <- store.ErrPoolExhausted
+			return
+		}
+	}
 }
 
 // purgeSessions deletes expired dashboard sessions every 10 minutes
@@ -344,7 +381,35 @@ func (s *Server) AdminHandler() http.Handler {
 		http.Redirect(w, r, "/admin/", http.StatusSeeOther)
 	})
 	mux.HandleFunc("/", httpx.NotFound)
-	return httpx.Wrap("admin", s.cfg.TrustedProxies, limitBody(mux))
+	return httpx.Wrap("admin", s.cfg.TrustedProxies, s.adminAllowList(limitBody(mux)))
+}
+
+// adminAllowList refuses the admin listener to addresses outside ZWEEP_ADMIN_ALLOWED_IPS (403). The
+// loopback is always allowed (console of the host, SSH tunnel to a binary install); the client
+// address is the one resolved through the trusted proxies.
+func (s *Server) adminAllowList(next http.Handler) http.Handler {
+	if len(s.cfg.AdminAllowedIPs) == 0 {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := httpx.ClientIP(r)
+		if !ip.IsLoopback() && !inPrefixes(ip, s.cfg.AdminAllowedIPs) {
+			metrics.AuthFailures.WithLabelValues("admin_ip").Inc()
+			slog.Info("Admin listener refused: address not in the allow-list", "component", "auth", "ip", ip.String())
+			httpx.Error(w, http.StatusForbidden, "forbidden", "")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func inPrefixes(ip netip.Addr, list []netip.Prefix) bool {
+	for _, p := range list {
+		if p.Contains(ip.Unmap()) {
+			return true
+		}
+	}
+	return false
 }
 
 // MetricsHandler serves /metrics and /v1/health/detail behind the token and/or the allow-list
@@ -434,7 +499,8 @@ func (s *Server) Run(ctx context.Context) error {
 	if s.cfg.MetricsListenHTTP != "" {
 		listeners = append(listeners, listener{"metrics", s.cfg.MetricsListenHTTP, s.MetricsHandler(), false})
 	}
-	errc := make(chan error, len(listeners))
+	errc := make(chan error, len(listeners)+1)
+	go s.poolWatchdog(ctx, errc)
 	servers := make([]*http.Server, 0, len(listeners))
 	for _, l := range listeners {
 		ln, err := net.Listen("tcp", l.addr)

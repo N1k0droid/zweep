@@ -101,7 +101,7 @@ func (s *Scheduler) RunNow() bool {
 
 // Once writes one backup now (on this node, if no other node is writing one) and prunes the old ones
 func (s *Scheduler) Once(ctx context.Context) (string, error) {
-	conn, err := s.St.Pool.Acquire(ctx)
+	conn, err := s.St.LockConn(ctx)
 	if err != nil {
 		return "", err
 	}

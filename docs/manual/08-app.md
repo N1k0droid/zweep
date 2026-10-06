@@ -60,12 +60,18 @@ each server uses its own connection and a little more battery).
 
 Every alarm Zabbix sends you through Zweep.
 
+<p align="center"><img src="../assets/screenshots/app-alerts.png" alt="The Alerts tab" width="300"></p>
+
 - **Views**: *Active* (open alarms, plus resolved ones for a while), *History*, *Show all*.
-- **Filters**: severity (*Severity n/6*, *Show all*), search by host, alarm or source.
+- **Filters**: severity (*Severity n/6*, *Show all*); the search icon at the top right opens the search
+  by host, alarm or source.
 - Each alarm shows the severity (or the custom channel with its color), host, name, source, time and
   state: *Problem*, *Updated*, *Resolved*, *Acknowledged*, *Test*.
 - Tap an alarm for the **detail**: host, host groups, start, tags, the update history (acknowledgements,
   messages, severity changes, who made them), *Open in Zabbix ↗*.
+
+  <p align="center"><img src="../assets/screenshots/app-detail.png" alt="The detail of a problem" width="300"></p>
+
 - **Mark all read** stops the reminders of all alarms.
 
 Alarms the phone received but did not show, and why, are marked *Stored without notification:* with the
@@ -94,7 +100,13 @@ never notified.
   | **History** | every problem started in the period chosen in **Settings → Data → Problem history** (1 h, 3 h, 12 h, **24 h**, 7 days), open or resolved |
 
   Resolved problems show *Resolved* and how long they lasted.
-- Filters (in every view): severity, host groups, status (*All*, *Unacknowledged*, *Acknowledged*, *Resolved*); search by host, problem, host group.
+- Filters (in every view): severity, host groups, status (*All*, *Unacknowledged*, *Acknowledged*, *Resolved*).
+- In the top bar: the **filter of the sources** (shown when the problems come from more than one
+  Zabbix: untick the ones to hide; all are shown by default), **refresh**, and the **search** icon,
+  which opens the search by host, problem, host group.
+
+<p align="center"><img src="../assets/screenshots/app-problems.png" alt="The Problems tab" width="300"></p>
+
 
 **How the list is kept up to date.** The three views are filters on the same list, kept on the phone
 and updated **in the background**, also when the tab is not open: the app keeps the connection with
@@ -114,7 +126,7 @@ screen. When the connection comes back, the server sends only what changed meanw
 **Acknowledge** (if allowed): open a problem, **Acknowledge**, write a message (required), send. The state
 goes from *Waiting for the connection* (offline: it is sent as soon as possible) to *Sent, waiting for
 Zabbix*, to **✓ Acknowledged in Zabbix**. In Zabbix the acknowledgement appears as made by the Zweep
-service user, with your username in the first line (`user: mario.rossi`) and your message below.
+service user, with your username in the first line (`Zweep User: mario.rossi`) and your message below.
 
 💡 Acknowledging usually **stops the escalation** in Zabbix (if the action uses the condition *Event is
 not acknowledged*): acknowledge when you take charge of the problem, so that nobody else is called.

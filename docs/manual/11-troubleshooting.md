@@ -55,6 +55,8 @@ delay come from outside Zweep.
 | Empty | no perimeter and no user group for the operator; or nothing open | set a perimeter / group (chapter 7.3) |
 | Some problems missing | the service user has no Read permission on those host groups | add them to the user group *Zweep API* in Zabbix |
 | *Data not updated for: …* | the Zabbix API does not answer or refuses the token | **Sources → source → Save and verify**; check token expiry, URL, CA |
+| *Save and verify* fails with *404* or an HTML page | wrong API URL | it is the frontend address plus `/api_jsonrpc.php`; with the distribution packages `…/zabbix/api_jsonrpc.php` (chapter 6.6) |
+| *At least one UI element must be enabled* when saving the role in Zabbix | Zabbix does not accept a role without UI elements | leave *Monitoring → Problems* on (chapter 6.5) |
 | Host group picker empty in the dashboard | no source with a working API | same as above |
 
 ## 11.5 Acknowledge fails
@@ -63,6 +65,7 @@ delay come from outside Zweep.
 |---|---|---|
 | *The administrator did not allow…* / button missing | the operator lacks *May acknowledge* (personal or group) | chapter 7.3 |
 | *✗ Rejected: No permissions to call "event.acknowledge"* | role of the service user | add `event.acknowledge` to the allow-list (chapter 6.5) |
+| *✗ Rejected* (permission), while the verification of the source is green | the role allows the method but not the **actions** | in the role, *Access to actions*: turn on *Acknowledge problems* and *Add problem comments* (chapter 6.5); then acknowledge again |
 | *✗ Rejected: No permissions to referred object* | the service user has no Read permission on that host | user group permissions in Zabbix |
 | stays *Waiting for the connection* | phone offline | it is sent automatically when back online |
 | stays *Sent, waiting for Zabbix* | Zabbix API unreachable | it is retried; check the source API |
@@ -108,6 +111,24 @@ The error is on the last lines of the log. Common ones:
 | `bind: address already in use` | another process on the port |
 | `bind: permission denied` on 80/443 | use Docker port mapping, or `CAP_NET_BIND_SERVICE` (chapter 3.4) |
 | cannot connect to the database | DB down, wrong host/password, `pg_hba.conf` |
+
+### The server runs but does not answer
+
+`/v1/health` answers `503`, the container is *unhealthy*, the log repeats `Store error` with
+`context canceled`, and the database is fine: every connection of Zweep to the database is in use.
+
+- **1.0.2 and earlier** could stall this way for good with three or more sources whose API is
+  configured (the jobs that hold a lock used the same few connections as everything else). Upgrade to
+  1.0.3; as a workaround add `&pool_max_conns=20` to the URL in `secrets/database-url` and restart.
+- From 1.0.3 the locks have their own connections, the pool is larger (10; `pool_max_conns` in the
+  database URL changes it), and if the pool stays exhausted for 2 minutes Zweep logs
+  `Database pool exhausted: stopping` and exits, so that Docker or systemd start it again.
+- To see what the connections are doing:
+  `docker compose exec db psql -U zweep -d zweep -c "select state, wait_event, now()-state_change, left(query,80) from pg_stat_activity where datname='zweep'"`.
+- For a report, `docker compose kill -s SIGQUIT zweep` makes Zweep write what every task is doing in
+  the log before it stops (then `docker compose up -d`).
+
+Monitor the health endpoint from Zabbix (chapter 10.1): a stall is then noticed in minutes.
 
 Secrets that cannot be decrypted after a restore or a move (Zabbix API errors, certificates lost): the
 master key is not the one used to write them. Use the original key.

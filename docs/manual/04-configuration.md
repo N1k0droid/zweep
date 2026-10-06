@@ -16,7 +16,7 @@ appear in the process list or in `docker inspect`.
 
 | Variable | Flag | Default | Description |
 |---|---|---|---|
-| `ZWEEP_DATABASE_URL_FILE` | `-database-url-file` | — | File with the PostgreSQL URL. **Preferred.** |
+| `ZWEEP_DATABASE_URL_FILE` | `-database-url-file` | — | File with the PostgreSQL URL. **Preferred.** The URL may set the size of the connection pool with `pool_max_conns` (default 10), e.g. `…/zweep?sslmode=disable&pool_max_conns=20`. |
 | `ZWEEP_DATABASE_URL` | `-database-url` | — | The URL itself (avoid: visible in the environment). One of the two is required. |
 | `ZWEEP_MASTER_KEY_FILE` | `-master-key-file` | — | **Required.** File with the 32-byte master key (raw or base64). |
 | `ZWEEP_LISTEN_HTTP` | `-listen-http` | `:8080` | Public listener: webhook, app stream and API, health. Serves HTTP and HTTPS on the same port. |
@@ -31,6 +31,7 @@ appear in the process list or in `docker inspect`.
 | `ZWEEP_METRICS_LISTEN_HTTP` | `-metrics-listen-http` | off | Listener for `/metrics` and `/v1/health/detail`. Requires a token and/or an allow-list. |
 | `ZWEEP_METRICS_TOKEN_FILE` | `-metrics-token-file` | — | File with the bearer token for the metrics listener (at least 32 characters). |
 | `ZWEEP_METRICS_ALLOWED_IPS` | `-metrics-allowed-ips` | — | IPs or CIDRs allowed on the metrics listener. |
+| `ZWEEP_ADMIN_ALLOWED_IPS` | `-admin-allowed-ips` | — (no filter) | IPs or CIDRs allowed on the admin listener (dashboard and admin API); others get 403, logged and counted (`zweep_auth_failures_total{listener="admin_ip"}`). The loopback is always allowed. Chapter 3.6. |
 | `ZWEEP_NODE_ID` | `-node-id` | host name | Name of this node in logs, metrics and health. |
 | `ZWEEP_KEEPALIVE` | `-keepalive` | `60s` | Keepalive of the phone streams (10s–10m). Lower it if a firewall drops idle connections sooner. |
 | `ZWEEP_LOG_LEVEL` | `-log-level` | `info` | `debug`, `info`, `warn`, `error`. |

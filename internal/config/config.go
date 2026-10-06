@@ -38,6 +38,7 @@ type Config struct {
 	BackupHour        int
 	MetricsToken      string
 	MetricsAllowedIPs []netip.Prefix
+	AdminAllowedIPs   []netip.Prefix // allow-list of the admin listener (empty: no filter; loopback always allowed)
 	TrustedProxies    []netip.Prefix
 	NodeID            string
 	ServiceURLs       []string
@@ -75,6 +76,7 @@ func Load(args []string, getenv func(string) string, stderr io.Writer) (*Config,
 		{name: "metrics-listen-http", env: "ZWEEP_METRICS_LISTEN_HTTP", help: "metrics listener (disabled if empty); needs a token or an allow-list"},
 		{name: "metrics-token-file", env: "ZWEEP_METRICS_TOKEN_FILE", help: "file with the bearer token for /metrics"},
 		{name: "metrics-allowed-ips", env: "ZWEEP_METRICS_ALLOWED_IPS", help: "comma-separated IPs or CIDRs allowed on the metrics listener"},
+		{name: "admin-allowed-ips", env: "ZWEEP_ADMIN_ALLOWED_IPS", help: "comma-separated IPs or CIDRs allowed on the admin listener (dashboard, admin API); empty: all; loopback is always allowed"},
 		{name: "trusted-proxies", env: "ZWEEP_TRUSTED_PROXIES", help: "comma-separated IPs or CIDRs of reverse proxies whose X-Forwarded-For is trusted"},
 		{name: "node-id", env: "ZWEEP_NODE_ID", help: "node identifier in logs, metrics and health (default: hostname)"},
 		{name: "service-urls", env: "ZWEEP_SERVICE_URLS", help: "comma-separated public URLs of this service, given to the app"},
@@ -145,6 +147,9 @@ func Load(args []string, getenv func(string) string, stderr io.Writer) (*Config,
 	}
 	if c.MetricsAllowedIPs, err = prefixes(get["metrics-allowed-ips"]); err != nil {
 		return nil, fmt.Errorf("metrics-allowed-ips: %w", err)
+	}
+	if c.AdminAllowedIPs, err = prefixes(get["admin-allowed-ips"]); err != nil {
+		return nil, fmt.Errorf("admin-allowed-ips: %w", err)
 	}
 	if c.MetricsListenHTTP != "" && c.MetricsToken == "" && len(c.MetricsAllowedIPs) == 0 {
 		return nil, errors.New("metrics-listen-http needs metrics-token-file and/or metrics-allowed-ips")

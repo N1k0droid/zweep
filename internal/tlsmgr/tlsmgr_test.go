@@ -118,7 +118,7 @@ func newManager(t *testing.T, defaults []string) (*Manager, *Storage) {
 	require.Nil(t, st.Migrate(ctx))
 	box, err := crypto.NewBox(make([]byte, 32))
 	require.Nil(t, err)
-	stor := NewStorage(st.Pool, box)
+	stor := NewStorage(st.Pool, st.Locks, box)
 	m := New(stor, defaults, nil)
 	require.Nil(t, m.Start(ctx))
 	return m, stor

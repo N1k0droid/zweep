@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -279,11 +282,19 @@ private fun ServerCard(s: ServerEntity, state: ConnState?, detail: String?, onTe
             }
             TextButton(onLogout, Modifier.offset(y = (-8).dp)) { Text(stringResource(R.string.action_logout), color = Zw.errorText) }
         }
-        // Account on the left, connection state on the right, on one line
-        Row(Modifier.fillMaxWidth().padding(start = padStart, end = padEnd), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.settings_account, s.username), color = Zw.textBody, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(stringResource(R.string.settings_status), color = Zw.textBody, fontSize = 12.sp)
-            Text(" $conn", color = connColor, fontSize = 12.sp)
+        // Account and connection state on their own lines, after an empty line: a long state (e.g.
+        // access revoked) wraps on the full width and stays readable. One empty line before the button.
+        Column(Modifier.fillMaxWidth().padding(start = padStart, end = padEnd)) {
+            Text("", fontSize = 12.sp)
+            Text(stringResource(R.string.settings_account, s.username), color = Zw.textBody, fontSize = 12.sp)
+            Text(
+                buildAnnotatedString {
+                    append(stringResource(R.string.settings_status))
+                    withStyle(SpanStyle(color = connColor)) { append(" $conn") }
+                },
+                color = Zw.textBody, fontSize = 12.sp,
+            )
+            Text("", fontSize = 12.sp)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             OutlinedButton(onTest, Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.action_test_alarm)) }
