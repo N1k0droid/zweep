@@ -57,6 +57,7 @@ func (s *Store) Audit(ctx context.Context, e AuditEntry) error {
 type AuditQuery struct {
 	Action string
 	Actor  string
+	IP     string // exact address
 	Since  time.Time
 	Limit  int
 }
@@ -69,8 +70,8 @@ func (s *Store) AuditEntries(ctx context.Context, q AuditQuery) ([]AuditEntry, e
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, ts, actor_type, COALESCE(actor, ''), action, COALESCE(target, ''), outcome, ip, details
 		FROM zw_audit
-		WHERE ($1 = '' OR action LIKE $1 || '%') AND ($2 = '' OR actor = $2) AND ts >= $3
-		ORDER BY id DESC LIMIT $4`, q.Action, q.Actor, q.Since, q.Limit)
+		WHERE ($1 = '' OR action LIKE $1 || '%') AND ($2 = '' OR actor = $2) AND ts >= $3 AND ($5 = '' OR host(ip) = $5)
+		ORDER BY id DESC LIMIT $4`, q.Action, q.Actor, q.Since, q.Limit, q.IP)
 	if err != nil {
 		return nil, err
 	}

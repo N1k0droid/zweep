@@ -58,6 +58,14 @@ Monitor Zweep **from Zabbix**, with an action that notifies by e-mail/SMS, **not
 
 4. Put the host in an action that notifies by e-mail or SMS.
 
+**With the web client** (chapter 13) the same page offers a second, optional template,
+`template_zweep_web.yaml` (**Zweep Web by HTTP**): import it the same way and link it to the same
+host, or to one of its own. Set `{$ZWEEP.WEB.URL}` (the public address of the web client, without
+path) and `{$ZWEEP.METRICS.URL}` as above. It raises *plugin not answering* / *not reachable* (the
+browsers open no page and get no notifications; the app is not affected) and *no web client
+connected* (the plugin runs but does not reach Zweep). Its item keys differ from those of the main
+template, so both can stay on one host.
+
 What it watches: the health endpoint (Zweep stalled or unreachable, in 2–5 minutes: the first thing
 to have), deliveries stuck or unconfirmed, users and devices online, database errors, webhook calls
 rejected, authentication failures, acknowledgements not reaching Zabbix, certificate and backups, a
@@ -187,6 +195,9 @@ A Zweep backup contains **the whole database** (users, devices, sources, channel
 audit, certificates…) except the dashboard sessions. It is **compressed and encrypted with the master key**
 (AES-GCM, in chunks with integrity checks): a stolen backup is useless without the key, and a damaged or
 truncated one is detected.
+
+The **web client plugin** (chapter 13) is a separate service with a small encrypted state of its
+own: it is not in these backups. Chapter 13.4 says what to copy and what happens without it.
 
 ### Automatic daily backups
 

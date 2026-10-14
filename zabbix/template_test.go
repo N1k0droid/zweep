@@ -30,4 +30,25 @@ func TestTemplateMetricsExist(t *testing.T) {
 		"zweep.sources.discovery", "zweep_projection_stale", "zweep_outbox_pending", "zweep_backup_last_success_timestamp"} {
 		require.Contains(t, string(Template), want)
 	}
+
+	// The template of the web client plugin: the same rule, and no item key in common with the main
+	// template, so that both can be linked to one host
+	usedWeb := regexp.MustCompile(`zweep_[a-z_]+`).FindAll(TemplateWeb, -1)
+	require.NotEmpty(t, usedWeb)
+	for _, m := range usedWeb {
+		require.True(t, defined[string(m)], "the web template reads %s, which the server does not export", m)
+	}
+	for _, want := range []string{"template: 'Zweep Web by HTTP'", "{$ZWEEP.WEB.URL}/healthz", "{$ZWEEP.METRICS.URL}/metrics", "zweep_web_devices"} {
+		require.Contains(t, string(TemplateWeb), want)
+	}
+	keys := regexp.MustCompile(`(?m)^\s+key: '?(zweep\.[a-z._]+)`)
+	main := map[string]bool{}
+	for _, m := range keys.FindAllSubmatch(Template, -1) {
+		main[string(m[1])] = true
+	}
+	webKeys := keys.FindAllSubmatch(TemplateWeb, -1)
+	require.NotEmpty(t, webKeys)
+	for _, m := range webKeys {
+		require.False(t, main[string(m[1])], "item key %s is in both templates", m[1])
+	}
 }

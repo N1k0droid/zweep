@@ -22,6 +22,9 @@ const (
 	DeliveryNotShown    = "not_shown"
 	DeliveryFiltered    = "filtered"
 	DeliveryUnconfirmed = "unconfirmed"
+	// DeliveryRelayed: the web client plugin handed the notification to the push service of the browser.
+	// Nobody knows yet whether the device has it: it is neither delivered nor something to retry.
+	DeliveryRelayed = "relayed"
 )
 
 // Message is a stored message as sent in a msg frame
@@ -85,6 +88,20 @@ func (s *Store) MarkSent(ctx context.Context, msgID, deviceID UUID, nextRetry ti
 	return err
 }
 
+// reasonCode keeps of the reason a device sends with a receipt only what a reason is: a short code
+// (letters, digits, "_", "-", "."). A device writes it, the dashboard shows it.
+func reasonCode(reason string) string {
+	if len(reason) > 64 {
+		reason = reason[:64]
+	}
+	for _, c := range reason {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-' || c == '.') {
+			return ""
+		}
+	}
+	return reason
+}
+
 // ReceiptResult reports what a receipt changed
 type ReceiptResult struct {
 	FirstDelivery bool          // the message became delivered with this receipt
@@ -96,10 +113,11 @@ type ReceiptResult struct {
 func (s *Store) Receipt(ctx context.Context, deviceID, msgID UUID, state, reason string, trackShown bool) (ReceiptResult, error) {
 	var res ReceiptResult
 	switch state {
-	case DeliveryDelivered, DeliveryFiltered, DeliveryShown, DeliveryNotShown:
+	case DeliveryDelivered, DeliveryFiltered, DeliveryShown, DeliveryNotShown, DeliveryRelayed:
 	default:
 		return res, fmt.Errorf("unknown receipt state %q", state)
 	}
+	reason = reasonCode(reason)
 	target := state
 	if !trackShown && (state == DeliveryShown || state == DeliveryNotShown) {
 		target = DeliveryDelivered
@@ -111,10 +129,13 @@ func (s *Store) Receipt(ctx context.Context, deviceID, msgID UUID, state, reason
 		UPDATE zw_delivery d SET
 			state = CASE
 				WHEN $3 = 'delivered' AND d.state IN ('shown', 'not_shown', 'filtered') THEN d.state
+				WHEN $3 = 'relayed' AND d.state IN ('delivered', 'shown', 'not_shown', 'filtered') THEN d.state
 				ELSE $3 END,
-			delivered_at = COALESCE(d.delivered_at, now()),
+			delivered_at = CASE WHEN $3 = 'relayed' THEN d.delivered_at ELSE COALESCE(d.delivered_at, now()) END,
+			relayed_at = CASE WHEN $3 = 'relayed' THEN COALESCE(d.relayed_at, now()) ELSE d.relayed_at END,
 			shown_at = CASE WHEN $3 = 'shown' THEN COALESCE(d.shown_at, now()) ELSE d.shown_at END,
-			not_shown_reason = CASE WHEN $3 = 'not_shown' THEN $4 ELSE d.not_shown_reason END,
+			-- why it was not shown, or why it was filtered (silenced, over the sending limit of a web client)
+			not_shown_reason = CASE WHEN $3 IN ('not_shown', 'filtered') THEN $4 WHEN $3 = 'shown' THEN NULL ELSE d.not_shown_reason END,
 			next_retry_at = NULL
 		FROM zw_message m, (SELECT delivered_at IS NOT NULL AS was FROM zw_delivery WHERE message_id = $1 AND device_id = $2) old
 		WHERE d.message_id = $1 AND d.device_id = $2 AND m.id = d.message_id
@@ -125,7 +146,7 @@ func (s *Store) Receipt(ctx context.Context, deviceID, msgID UUID, state, reason
 	if err != nil {
 		return res, err
 	}
-	if !wasDelivered {
+	if !wasDelivered && state != DeliveryRelayed {
 		res.FirstDelivery = true
 		res.Latency = time.Since(created)
 	}
@@ -135,11 +156,21 @@ func (s *Store) Receipt(ctx context.Context, deviceID, msgID UUID, state, reason
 // SetAckedSeq records the device's contiguous persisted position (cumulative receipt):
 // every pending delivery up to seq is closed. The position never moves backwards.
 // It returns the number of deliveries closed and their ingest-to-delivery latencies.
-func (s *Store) SetAckedSeq(ctx context.Context, deviceID UUID, userID string, seq int64) ([]time.Duration, error) {
+// relayed is for the devices of the web client plugin: the position means "handed to the push service",
+// so the deliveries are closed as relayed, not delivered, and give no latency.
+func (s *Store) SetAckedSeq(ctx context.Context, deviceID UUID, userID string, seq int64, relayed bool) ([]time.Duration, error) {
 	var lat []time.Duration
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		lat = lat[:0]
 		if _, err := tx.Exec(ctx, `UPDATE zw_device_status SET acked_seq = GREATEST(acked_seq, $2), updated_at = now() WHERE device_id = $1`, deviceID, seq); err != nil {
+			return err
+		}
+		if relayed {
+			_, err := tx.Exec(ctx, `
+				UPDATE zw_delivery d SET state = 'relayed', relayed_at = now(), next_retry_at = NULL
+				FROM zw_message m
+				WHERE d.message_id = m.id AND d.device_id = $1 AND m.user_id = $2 AND m.seq <= $3
+				  AND d.state IN ('queued', 'sent', 'unconfirmed')`, deviceID, userID, seq)
 			return err
 		}
 		rows, err := tx.Query(ctx, `
@@ -204,7 +235,8 @@ type Stats struct {
 	PendingUnreachable int64
 	Unconfirmed        int64
 	OldestPendingAge   time.Duration
-	DevicesByState     map[string]int64
+	DevicesByState     map[string]int64 // phones only: a web device is kept "online" by the plugin, not by a person's phone
+	WebByState         map[string]int64 // devices of the web client plugin
 	Users              int64
 	UsersOnline        int64
 	MessagesStored     int64
@@ -213,7 +245,7 @@ type Stats struct {
 
 // Stats computes the aggregate gauges
 func (s *Store) Stats(ctx context.Context) (*Stats, error) {
-	st := &Stats{DevicesByState: map[string]int64{}}
+	st := &Stats{DevicesByState: map[string]int64{}, WebByState: map[string]int64{}}
 	var oldestPending, oldestMessage *time.Time
 	err := s.Pool.QueryRow(ctx, `
 		SELECT
@@ -224,7 +256,7 @@ func (s *Store) Stats(ctx context.Context) (*Stats, error) {
 		  (SELECT count(*) FROM zw_delivery WHERE state = 'unconfirmed'),
 		  (SELECT min(m.created_at) FROM zw_delivery x JOIN zw_message m ON m.id = x.message_id WHERE x.state IN ('queued', 'sent')),
 		  (SELECT count(*) FROM zw_user WHERE role = 'operator' AND NOT disabled),
-		  (SELECT count(DISTINCT d.user_id) FROM zw_device d JOIN zw_device_status s ON s.device_id = d.id WHERE s.state = 'online'),
+		  (SELECT count(DISTINCT d.user_id) FROM zw_device d JOIN zw_device_status s ON s.device_id = d.id WHERE s.state = 'online' AND d.platform <> 'web'),
 		  (SELECT count(*) FROM zw_message),
 		  (SELECT min(created_at) FROM zw_message)`).
 		Scan(&st.PendingReachable, &st.PendingUnreachable, &st.Unconfirmed, &oldestPending, &st.Users, &st.UsersOnline, &st.MessagesStored, &oldestMessage)
@@ -237,18 +269,24 @@ func (s *Store) Stats(ctx context.Context) (*Stats, error) {
 	if oldestMessage != nil {
 		st.OldestMessageAge = time.Since(*oldestMessage)
 	}
-	rows, err := s.Pool.Query(ctx, `SELECT state, count(*) FROM zw_device_status GROUP BY state`)
+	rows, err := s.Pool.Query(ctx, `
+		SELECT s.state, d.platform = 'web', count(*) FROM zw_device_status s JOIN zw_device d ON d.id = s.device_id GROUP BY 1, 2`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var state string
+		var web bool
 		var n int64
-		if err := rows.Scan(&state, &n); err != nil {
+		if err := rows.Scan(&state, &web, &n); err != nil {
 			return nil, err
 		}
-		st.DevicesByState[state] = n
+		if web {
+			st.WebByState[state] = n
+		} else {
+			st.DevicesByState[state] = n
+		}
 	}
 	return st, rows.Err()
 }

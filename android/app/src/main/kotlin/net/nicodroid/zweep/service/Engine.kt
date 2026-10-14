@@ -443,9 +443,10 @@ object Engine {
         // The same for the permission to close alerts, which follows the perimeter
         // Start from the stored features, not from s: a welcome may have updated them since s was read
         val current = db.servers().get(s.id)?.features ?: s.features
-        val features = current.split(',').filter { it.isNotEmpty() && it != "problems" && it != "close" && it != "problem_views" } +
+        val features = current.split(',').filter { it.isNotEmpty() && it != "problems" && it != "close" && it != "problem_views" && it != "ack_message" } +
             (if (hasApi) listOf("problems") else emptyList()) + (if ("close" in cfg.features) listOf("close") else emptyList()) +
-            (if (hasApi && "problem_views" in cfg.features) listOf("problem_views") else emptyList())
+            (if (hasApi && "problem_views" in cfg.features) listOf("problem_views") else emptyList()) +
+            (if ("ack_message" in cfg.features) listOf("ack_message") else emptyList())
         db.servers().setWelcome(s.id, features.joinToString(","), cfg.nodeId)
         runCatching { Updater.offer(s.id, cfg.appUpdate) }.onFailure { warn("update offer", it) }
         if (hasApi && db.servers().get(s.id)?.projRev == 0L) runCatching { fetchSnapshot(s) }.onFailure { warn("snapshot", it) }
@@ -497,11 +498,14 @@ object Engine {
 
     // ---------------------------------------------------------------- acks
 
-    /** Queues an ack typed in the Detail; it is sent now or as soon as the server is reachable */
-    suspend fun queueAck(ref: Long, source: String, eventid: String, text: String): String {
+    /**
+     * Queues an acknowledgement, or a message alone (action "message"), typed in the Detail; it is
+     * sent now or as soon as the server is reachable
+     */
+    suspend fun queueAck(ref: Long, source: String, eventid: String, text: String, action: String = AckEntity.ACTION_ACK): String {
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
-        db.acks().insert(AckEntity(id, ref, source, eventid, text, AckEntity.QUEUED, null, now, now))
+        db.acks().insert(AckEntity(id, ref, source, eventid, text, AckEntity.QUEUED, null, now, now, action))
         scope.launch { sendQueuedAcks(ref) }
         return id
     }
@@ -510,7 +514,7 @@ object Engine {
         val s = db.servers().get(ref) ?: return
         for (a in db.acks().queued(ref)) {
             try {
-                val st = api(s).ack(a.requestId, a.source, a.eventid, a.text)
+                val st = api(s).ack(a.requestId, a.source, a.eventid, a.text, a.action)
                 db.acks().setState(a.requestId, st.state, st.reason, System.currentTimeMillis())
             } catch (e: ApiException) {
                 // Refused by the server (mode, perimeter, text): final, never retried

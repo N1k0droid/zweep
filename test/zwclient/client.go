@@ -49,6 +49,7 @@ const (
 type Device struct {
 	BaseURL string
 	Token   string
+	Header  map[string]string // extra headers of the connection (a proxy in front, in the tests)
 
 	mu        sync.Mutex
 	conn      *websocket.Conn
@@ -94,6 +95,9 @@ func wsURL(base string) string {
 func (d *Device) Connect(ctx context.Context) error {
 	h := http.Header{}
 	h.Set("Authorization", "Bearer "+d.Token)
+	for k, v := range d.Header {
+		h.Set(k, v)
+	}
 	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL(d.BaseURL), h)
 	if err != nil {
 		if resp != nil {
@@ -163,6 +167,10 @@ func (d *Device) read(conn *websocket.Conn, done chan struct{}) {
 			d.notices = append(d.notices, n.Code)
 			d.mu.Unlock()
 		case "msg":
+			// Kept as received too: a test may look at fields the simulated app does not use
+			d.mu.Lock()
+			d.frames["msg"] = append(d.frames["msg"], append(json.RawMessage{}, data...))
+			d.mu.Unlock()
 			var m Msg
 			if json.Unmarshal(data, &m) == nil {
 				d.onMessage(conn, m)

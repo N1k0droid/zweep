@@ -39,6 +39,7 @@ type Config struct {
 	MetricsToken      string
 	MetricsAllowedIPs []netip.Prefix
 	AdminAllowedIPs   []netip.Prefix // allow-list of the admin listener (empty: no filter; loopback always allowed)
+	WebPluginIPs      []netip.Prefix // where web devices may call from: the web client plugin (empty: no filter)
 	TrustedProxies    []netip.Prefix
 	NodeID            string
 	ServiceURLs       []string
@@ -77,6 +78,7 @@ func Load(args []string, getenv func(string) string, stderr io.Writer) (*Config,
 		{name: "metrics-token-file", env: "ZWEEP_METRICS_TOKEN_FILE", help: "file with the bearer token for /metrics"},
 		{name: "metrics-allowed-ips", env: "ZWEEP_METRICS_ALLOWED_IPS", help: "comma-separated IPs or CIDRs allowed on the metrics listener"},
 		{name: "admin-allowed-ips", env: "ZWEEP_ADMIN_ALLOWED_IPS", help: "comma-separated IPs or CIDRs allowed on the admin listener (dashboard, admin API); empty: all; loopback is always allowed"},
+		{name: "web-plugin-ips", env: "ZWEEP_WEB_PLUGIN_IPS", help: "comma-separated IPs or CIDRs of the web client plugin (not of its users): devices of platform web are refused from elsewhere, and the browser address the plugin reports is trusted; empty: no filter, nothing reported is trusted"},
 		{name: "trusted-proxies", env: "ZWEEP_TRUSTED_PROXIES", help: "comma-separated IPs or CIDRs of reverse proxies whose X-Forwarded-For is trusted"},
 		{name: "node-id", env: "ZWEEP_NODE_ID", help: "node identifier in logs, metrics and health (default: hostname)"},
 		{name: "service-urls", env: "ZWEEP_SERVICE_URLS", help: "comma-separated public URLs of this service, given to the app"},
@@ -150,6 +152,9 @@ func Load(args []string, getenv func(string) string, stderr io.Writer) (*Config,
 	}
 	if c.AdminAllowedIPs, err = prefixes(get["admin-allowed-ips"]); err != nil {
 		return nil, fmt.Errorf("admin-allowed-ips: %w", err)
+	}
+	if c.WebPluginIPs, err = prefixes(get["web-plugin-ips"]); err != nil {
+		return nil, fmt.Errorf("web-plugin-ips: %w", err)
 	}
 	if c.MetricsListenHTTP != "" && c.MetricsToken == "" && len(c.MetricsAllowedIPs) == 0 {
 		return nil, errors.New("metrics-listen-http needs metrics-token-file and/or metrics-allowed-ips")

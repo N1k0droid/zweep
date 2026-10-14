@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/n1k0droid/zweep/internal/auth"
@@ -31,6 +32,7 @@ func (d *Dashboard) userRoutes() {
 	m.HandleFunc("GET "+prefix+"/users/{name}", d.page(anyRole, d.user))
 	m.HandleFunc("POST "+prefix+"/users/{name}/account", d.page(adminOnly, d.userAccount))
 	m.HandleFunc("POST "+prefix+"/users/{name}/password", d.page(adminOnly, d.userPassword))
+	m.HandleFunc("POST "+prefix+"/users/{name}/limits", d.page(adminOnly, d.userLimits))
 	m.HandleFunc("POST "+prefix+"/users/{name}/delete", d.page(adminOnly, d.userDelete))
 	m.HandleFunc("POST "+prefix+"/users/{name}/totp/reset", d.page(adminOnly, d.userTOTPReset))
 	m.HandleFunc("POST "+prefix+"/users/{name}/perimeter", d.page(anyRole, d.userPerimeter))
@@ -59,7 +61,7 @@ func (d *Dashboard) users(w http.ResponseWriter, r *http.Request) {
 		d.unavailable(w, r, err)
 		return
 	}
-	devices, err := d.Store.Devices(ctx, "")
+	devices, err := d.deviceList(ctx, "")
 	if err != nil {
 		d.unavailable(w, r, err)
 		return
@@ -177,7 +179,7 @@ func (d *Dashboard) renderUser(w http.ResponseWriter, r *http.Request, status in
 	data["ViewerPrimary"] = primary != "" && current(r).sess.User.ID == primary
 	data["Self"] = current(r).sess.User.ID == u.ID
 	if u.Role == store.RoleOperator {
-		devices, err := d.Store.Devices(ctx, u.Username)
+		devices, err := d.deviceList(ctx, u.Username)
 		if err != nil {
 			d.unavailable(w, r, err)
 			return
@@ -190,6 +192,22 @@ func (d *Dashboard) renderUser(w http.ResponseWriter, r *http.Request, status in
 		}
 		data["Devices"] = active
 		data["LatestBuild"] = d.latestBuild()
+		// Enrollment rules: the limits of the user over the defaults, and where its password stands
+		st := d.Hub.Settings()
+		pol := store.EnrollPolicy{MaxPhones: st.MaxPhones, MaxWeb: st.MaxWeb, UsesPerDevice: st.PasswordUsesPerDev,
+			PasswordMaxAge: st.PasswordMaxAge, WebOn: st.WebClient}
+		phones, web := 0, 0
+		for _, dv := range active {
+			if dv.Platform == store.PlatformWeb {
+				web++
+			} else {
+				phones++
+			}
+		}
+		data["Rules"] = map[string]any{"Web": st.WebClient, "DefPhones": st.MaxPhones, "DefWeb": st.MaxWeb, "BoundAll": st.WebRequireBound,
+			"Phones": phones, "WebClients": web, "Pw": pol.Password(u, time.Now()),
+			// The web activation link is offered only when everything it needs is there
+			"WebLink": st.WebClient && u.WebEnabled && st.WebURL != "", "WebNoURL": st.WebClient && u.WebEnabled && st.WebURL == ""}
 		if err := d.perimeterData(ctx, u, data); err != nil {
 			d.unavailable(w, r, err)
 			return
@@ -407,6 +425,47 @@ func (d *Dashboard) userPassword(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, userURL(u.Username)+"?done=password_set", http.StatusSeeOther)
 }
 
+// userLimits saves how many devices the user may have and whether it may use the web client. An empty
+// number means "the default of the settings".
+func (d *Dashboard) userLimits(w http.ResponseWriter, r *http.Request) {
+	u, err := d.Store.UserByName(r.Context(), r.PathValue("name"))
+	if err != nil {
+		d.notFoundOr(w, r, err)
+		return
+	}
+	number := func(field string) (*int, bool) {
+		v := strings.TrimSpace(r.PostFormValue(field))
+		if v == "" {
+			return nil, true
+		}
+		n, err := strconv.Atoi(v)
+		return &n, err == nil && n >= 0 && n <= 100
+	}
+	phones, ok1 := number("max_phones")
+	web, ok2 := number("max_web")
+	webEnabled := r.PostFormValue("web_enabled") == "1"
+	requireBound := r.PostFormValue("web_require_bound") == "1"
+	if !d.Hub.Settings().WebClient {
+		// The form does not show the web fields while the web client is off: keep what the user has
+		web, ok2, webEnabled, requireBound = u.MaxWeb, true, u.WebEnabled, u.WebRequireBound
+	}
+	if d.Hub.Settings().WebRequireBound {
+		// Required for everyone: the box of the user is shown ticked and cannot be changed
+		requireBound = u.WebRequireBound
+	}
+	if !ok1 || !ok2 {
+		d.renderUser(w, r, http.StatusBadRequest, map[string]any{"Error": "err.invalid_limit"})
+		return
+	}
+	res := d.call(r, "PUT", "/v1/admin/users/"+url.PathEscape(u.Username)+"/limits",
+		map[string]any{"max_phones": phones, "max_web": web, "web_enabled": webEnabled, "web_require_bound": requireBound})
+	if !res.OK() {
+		d.renderUser(w, r, http.StatusBadRequest, map[string]any{"ErrorText": res.Message()})
+		return
+	}
+	http.Redirect(w, r, userURL(u.Username)+"?done=saved#rules", http.StatusSeeOther)
+}
+
 func (d *Dashboard) userDelete(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if strings.EqualFold(name, current(r).sess.User.Username) {
@@ -552,9 +611,15 @@ func (d *Dashboard) userEnroll(w http.ResponseWriter, r *http.Request) {
 		d.unavailable(w, r, err)
 		return
 	}
-	d.audit(r, "admin.enrollment.create", u.Username, "ok", map[string]any{"expires_at": expires})
+	st := d.Hub.Settings()
+	web := r.PostFormValue("target") == "web" && st.WebClient && u.WebEnabled && st.WebURL != ""
+	d.audit(r, "admin.enrollment.create", u.Username, "ok", map[string]any{"expires_at": expires, "web": web})
 	extra := map[string]any{"EnrollCode": code, "EnrollExpires": expires.Local().Format("15:04")}
-	if u := enrollURL(d.serviceURLs()); u != "" {
+	if web {
+		// The same single-use code, as a link to the web client: opened on the device, it activates it
+		link := st.WebURL + "/?code=" + url.QueryEscape(code)
+		extra["EnrollWeb"], extra["EnrollQR"] = link, qrDataURI(link)
+	} else if u := enrollURL(d.serviceURLs()); u != "" {
 		q := url.Values{"url": {u}, "code": {code}}
 		if d.TLS != nil && strings.HasPrefix(u, "https://") {
 			// A certificate the phones do not trust by themselves: the app pins this key

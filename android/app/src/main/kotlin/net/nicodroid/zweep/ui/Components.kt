@@ -47,6 +47,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -293,7 +295,7 @@ private fun HostGroupDialog(groups: List<String>, selected: Set<String>, onDismi
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                     TextButton({ onApply(emptySet()) }) { Text(stringResource(R.string.filter_select_all)) }
                     TextButton(onDismiss) { Text(stringResource(R.string.action_cancel)) }
-                    Button({ onApply(draft) }) { Text(stringResource(R.string.filter_apply)) }
+                    Button({ onApply(draft) }, shape = Zw.control) { Text(stringResource(R.string.filter_apply)) }
                 }
             }
         }
@@ -333,3 +335,165 @@ fun hostGroupTree(groups: List<String>): List<HostGroupRow> {
 /** Whether one of the host groups of a problem is a selected group or one of its subgroups */
 fun inHostGroups(problemGroups: List<String>, selected: Set<String>): Boolean =
     selected.isEmpty() || problemGroups.any { g -> selected.any { s -> g == s || g.startsWith("$s/") } }
+
+/**
+ * Pull to refresh: pulling the list down at its top opens a strip above it with the Zweep logo. The
+ * logo follows the finger (it grows, and its alarms appear one by one until the list is pulled far
+ * enough); released there, a pulse leaves its centre and draws the logo: the wave goes out leaving
+ * the red bands of the logo behind it, each alarm lights up as the wave reaches it, then it all
+ * fades. The pulse is repeated while [onRefresh] works and always ends whole. Then the strip closes.
+ */
+@Composable
+fun PullToRefresh(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val threshold = with(density) { 140.dp.toPx() } // finger travel that asks for the refresh
+    var pulled by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val refresh by androidx.compose.runtime.rememberUpdatedState(onRefresh)
+    // A refresh is over in a moment: the pulse goes on to the end of the one it is in, so that it is
+    // seen and never cut short. The time left is waited after the refresh ended: the pulse always stops.
+    var shown by remember { mutableStateOf(false) }
+    var startedAt by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(refreshing) {
+        if (refreshing) {
+            startedAt = android.os.SystemClock.uptimeMillis()
+            shown = true
+        } else if (shown) {
+            kotlinx.coroutines.delay(PULSE_MS - (android.os.SystemClock.uptimeMillis() - startedAt) % PULSE_MS)
+            shown = false
+        }
+    }
+    val pulsing = refreshing || shown
+    val busy by androidx.compose.runtime.rememberUpdatedState(pulsing)
+    val connection = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            // Pushed back up: the strip closes before the list scrolls
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (pulled <= 0f || available.y >= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val used = maxOf(available.y, -pulled)
+                pulled += used
+                return androidx.compose.ui.geometry.Offset(0f, used)
+            }
+
+            // Dragged down with the list already at its top: what the list did not use opens the strip
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (busy || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput || available.y <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                pulled += available.y
+                return androidx.compose.ui.geometry.Offset(0f, available.y)
+            }
+
+            // Released
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (pulled <= 0f) return androidx.compose.ui.unit.Velocity.Zero
+                val go = pulled > threshold && !busy
+                pulled = 0f
+                if (go) refresh()
+                return available // no fling of the list out of a pull
+            }
+        }
+    }
+    // The pulse counts the frames itself: it moves also on a phone whose animations are reduced or off
+    var elapsed by remember { androidx.compose.runtime.mutableFloatStateOf(0f) } // ms since the pulse began
+    androidx.compose.runtime.LaunchedEffect(pulsing) {
+        if (!pulsing) {
+            elapsed = 0f
+            return@LaunchedEffect
+        }
+        val start = androidx.compose.runtime.withFrameNanos { it }
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { now -> elapsed = (now - start) / 1_000_000f }
+        }
+    }
+    val progress = (pulled / threshold).coerceIn(0f, 1f)
+    val height = if (pulsing) 64.dp else minOf(with(density) { (pulled / 2.5f).toDp() }, 64.dp)
+    Column(modifier.nestedScroll(connection)) {
+        if (height > 0.dp) {
+            Box(Modifier.fillMaxWidth().height(height).clipToBounds(), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.size(52.dp)) { zweepLogo(if (pulsing) 1f else progress, if (pulsing) elapsed else -1f) }
+            }
+        }
+        Box(Modifier.weight(1f)) { content() }
+    }
+}
+
+/** One pulse of the logo, a second and a half: the wave goes out in [WAVE_MS], the logo stays whole, then fades from [FADE_FROM_MS] */
+private const val PULSE_MS = 1500L
+private const val WAVE_MS = 850f
+private const val FADE_FROM_MS = 1050f
+
+/** An alarm of the logo, in the units of its drawing: where it is from the centre, its size and opacity, and those of its halo */
+private class LogoAlarm(val x: Float, val y: Float, val r: Float, val opacity: Float, val halo: Float, val haloOpacity: Float) {
+    val far = kotlin.math.hypot(x, y)
+}
+
+private val LOGO_ALARMS = listOf(
+    LogoAlarm(121.9f, -156.0f, 15f, 1.00f, 45.0f, 0.52f), LogoAlarm(-162.8f, -94.0f, 11.5f, 0.88f, 32.0f, 0.45f),
+    LogoAlarm(-126.6f, 122.3f, 9f, 0.75f, 23.0f, 0.39f), LogoAlarm(152.8f, 74.5f, 7f, 0.67f, 16.8f, 0.34f),
+    LogoAlarm(-23.1f, -164.4f, 5f, 0.59f, 11.3f, 0.30f), LogoAlarm(53.0f, 212.5f, 4f, 0.54f, 8.6f, 0.27f),
+)
+
+/** The red bands around the disc of the logo: from, to, opacity */
+private val LOGO_BANDS = listOf(Triple(103.5f, 140f, 0.42f), Triple(140f, 168f, 0.31f), Triple(168f, 198f, 0.21f), Triple(198f, 227f, 0.11f))
+private const val LOGO_DISC = 111.5f
+
+/**
+ * The Zweep logo as it is drawn, small: the red disc with its Z, the ring of the radar, the six
+ * alarms at their own sizes and the red bands around the disc. [shown] 0..1: how much of it is there
+ * while the list is pulled (it grows, the alarms appear one by one). [pulse]: milliseconds since the
+ * pulse began, negative when still: a wave leaves the disc and the bands appear behind it, each alarm
+ * lights up with its halo as the wave reaches it, the whole logo stays a moment, then the bands and
+ * the halos fade. A halo never comes near the disc of the Z.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.zweepLogo(shown: Float, pulse: Float) {
+    val c = center
+    // The drawing of the logo is 464 units wide (a radius of 232 around its centre)
+    val u = size.minDimension / 464f * (0.6f + 0.4f * shown)
+    val red = Zw.brand
+    val warm = androidx.compose.ui.graphics.Color(0xFFE5392F) // the red of the bands and of the alarms
+    val white = androidx.compose.ui.graphics.Color.White
+    // How bright each alarm is, and how much of its halo is there
+    val lit: List<Float>
+    if (pulse < 0f) {
+        lit = LOGO_ALARMS.indices.map { i -> if (shown * LOGO_ALARMS.size > i) 1f else 0f }
+    } else {
+        val p = pulse % PULSE_MS
+        val f = (p / WAVE_MS).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) } // quick at first, then slower
+        val front = LOGO_BANDS.first().first + (LOGO_BANDS.last().second - LOGO_BANDS.first().first) * f
+        val fade = 1f - ((p - FADE_FROM_MS) / (PULSE_MS - 50f - FADE_FROM_MS)).coerceIn(0f, 1f)
+        // The trail: each band is there as far as the wave has gone
+        for ((from, to, opacity) in LOGO_BANDS) {
+            if (front <= from) continue
+            val end = minOf(to, front)
+            drawCircle(warm.copy(alpha = opacity * fade), radius = (from + end) / 2 * u, center = c,
+                style = androidx.compose.ui.graphics.drawscope.Stroke((end - from) * u))
+        }
+        if (f < 1f) {
+            drawCircle(warm.copy(alpha = 0.5f * (1f - 0.6f * f)), radius = front * u, center = c,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(maxOf(3f * u, 1.5f)))
+        }
+        lit = LOGO_ALARMS.map { a -> ((front - a.far + 12f) / 24f).coerceIn(0f, 1f) * fade }
+    }
+    drawCircle(white.copy(alpha = 0.35f * shown), radius = 160f * u, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(maxOf(2.5f * u, 1.5f)))
+    LOGO_ALARMS.forEachIndexed { i, a ->
+        val at = androidx.compose.ui.geometry.Offset(c.x + a.x * u, c.y + a.y * u)
+        val on = lit[i]
+        if (pulse >= 0f && on > 0f) {
+            // The halo stops well before the disc of the Z
+            val reach = minOf(a.halo * (1f + 0.25f * on), a.far - LOGO_DISC - 18f) * u
+            drawCircle(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(androidx.compose.ui.graphics.Color(0xFFFF6A3A).copy(alpha = a.haloOpacity * on * shown), red.copy(alpha = 0f)), center = at, radius = reach,
+                ),
+                radius = reach, center = at,
+            )
+        }
+        drawCircle(warm.copy(alpha = a.opacity * (0.35f + 0.65f * on) * shown), radius = maxOf(a.r * u, 1.5f), center = at)
+    }
+    drawCircle(red.copy(alpha = 0.4f + 0.6f * shown), radius = LOGO_DISC * u, center = c)
+    // The Z of the logo
+    val z = androidx.compose.ui.graphics.Path().apply {
+        val pts = listOf(-40f to -48f, 40f to -48f, 40f to -31f, -15.38f to 31f, 40f to 31f, 40f to 48f, -40f to 48f, -40f to 31f, 15.38f to -31f, -40f to -31f)
+        pts.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(c.x + x * u, c.y + y * u) else lineTo(c.x + x * u, c.y + y * u) }
+        close()
+    }
+    drawPath(z, white.copy(alpha = 0.4f + 0.6f * shown))
+}

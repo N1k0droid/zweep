@@ -182,4 +182,53 @@ class CoreTest {
         assertEquals(isoMillis("2026-10-03T09:00:00Z"), isoMillis("2026-10-03T11:00:00+02:00"))
         assertNull(isoMillis("not a time"))
     }
+
+    /** A Zweep vibration for every channel, and the rhythm a person taps turned into one a motor renders */
+    @Test
+    fun vibrations() {
+        for (id in listOf("sev_0", "sev_1", "sev_2", "sev_3", "sev_4", "sev_5", "resolved", "c_anything")) {
+            val p = Vibrations.zweep(id)
+            assertEquals(id, 0L, p[0]) // Android: the first value is the pause before the first vibration
+            assertTrue(id, p.size % 2 == 0 && p.drop(1).all { it >= 40 }) // ends with a vibration, nothing too short to feel
+            assertTrue(id, Vibrations.length(p) <= 1100) // as long as its sound, about
+        }
+        // Each severity beats its own rhythm
+        assertEquals(6, (0..5).map { Vibrations.zweep("sev_$it").toList() }.distinct().size)
+
+        assertNull(Vibrations.fromTaps(emptyList()))
+        // Two taps: 200 ms held, 300 ms of pause, 500 ms held
+        assertEquals(listOf(0L, 200L, 300L, 500L), Vibrations.fromTaps(listOf(1000L to 1200L, 1500L to 2000L))!!.toList())
+        // Given in any order; a tap too short to feel and a pause too short are stretched
+        assertEquals(listOf(0L, 40L, 40L, 100L), Vibrations.fromTaps(listOf(1015L to 1115L, 1000L to 1005L))!!.toList())
+        // Never longer than three seconds, never more than ten taps
+        val long = Vibrations.fromTaps(listOf(0L to 2000L, 2500L to 9000L))!!
+        assertEquals(Vibrations.MAX_MS, Vibrations.length(long))
+        val many = Vibrations.fromTaps((0 until 30).map { it * 100L to it * 100L + 50 })!!
+        assertEquals(Vibrations.MAX_TAPS, many.size / 2)
+        assertTrue(Vibrations.length(many) <= Vibrations.MAX_MS)
+    }
+
+    /** The words are those of {EVENT.UPDATE.ACTION} in Zabbix: never "acknowledged" alone with a message */
+    @Test
+    fun acknowledgementOfAnUpdate() {
+        assertTrue(isAckAction("acknowledged"))
+        assertTrue(isAckAction("acknowledged and commented"))
+        assertTrue(isAckAction("acknowledged, commented and changed severity from High to Disaster"))
+        assertTrue(isAckAction("commented and acknowledged"))
+        assertFalse(isAckAction("commented"))
+        assertFalse(isAckAction("unacknowledged"))
+        assertFalse(isAckAction("unacknowledged and commented"))
+        assertFalse(isAckAction(""))
+
+        fun body(action: String, user: String, zweepUser: String) =
+            """{"host":"db-01","acknowledged":true,"update":{"action":"$action","user":"$user","zweep_user":"$zweepUser","message":"Zweep User: somebody\\nwritten by hand in Zabbix"}}"""
+        // Made from Zweep: the server says by whom. The name is never taken from the text of the message.
+        assertEquals("anna", ackAuthor(body("acknowledged and commented", "Inaccessible user", "anna")))
+        assertEquals("Luigi Verdi", ackAuthor(body("acknowledged and commented", "Luigi Verdi", "")))
+        assertEquals("", ackAuthor(body("acknowledged", "Inaccessible user", "")))
+        // A comment on a problem already acknowledged is not an acknowledgement
+        assertNull(ackAuthor(body("commented", "Luigi Verdi", "")))
+        assertNull(ackAuthor("""{"host":"db-01"}"""))
+        assertNull(ackAuthor("not json"))
+    }
 }

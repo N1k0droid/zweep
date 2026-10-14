@@ -14,6 +14,7 @@ var migrations = []string{
 	schemaV6,
 	schemaV7,
 	schemaV8,
+	schemaV9,
 }
 
 // schemaV1 is the initial schema
@@ -361,4 +362,41 @@ CREATE INDEX IF NOT EXISTS zw_event_outside_idx ON zw_event (received_at) WHERE 
 INSERT INTO zw_setting (key, value, updated_by)
 SELECT 'admin.primary', to_jsonb(id), 'system' FROM zw_user WHERE role = 'admin' ORDER BY created_at, id LIMIT 1
 ON CONFLICT (key) DO NOTHING;
+`
+
+// schemaV9: the web client (deliveries handed to a push service) and the enrollment rules of the
+// operators (expiring passwords, device limits, web client per user)
+const schemaV9 = `
+ALTER TABLE zw_delivery ADD COLUMN IF NOT EXISTS relayed_at TIMESTAMPTZ;
+
+-- Passwords of operators are temporary credentials for enrolling a device: they expire after a time
+-- and after a number of enrollments. Devices per user are limited; the web client is allowed per user.
+-- NULL limits follow the defaults of the settings.
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS password_uses INT NOT NULL DEFAULT 0;
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS password_valid_from TIMESTAMPTZ;
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS max_phones INT CHECK (max_phones IS NULL OR max_phones BETWEEN 0 AND 100);
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS max_web INT CHECK (max_web IS NULL OR max_web BETWEEN 0 AND 100);
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS web_enabled BOOLEAN NOT NULL DEFAULT false;
+-- A password set before this rule existed starts its time now, not at the old date: nobody is cut off by an upgrade
+UPDATE zw_user SET password_valid_from = now() WHERE password_hash IS NOT NULL AND password_valid_from IS NULL;
+
+-- The address a device last connected from: shown with the device, audited when it changes
+ALTER TABLE zw_device_status ADD COLUMN IF NOT EXISTS last_ip INET;
+-- For a web client: the address is the browser's, reported by the plugin, not the plugin's own
+ALTER TABLE zw_device_status ADD COLUMN IF NOT EXISTS last_ip_reported BOOLEAN NOT NULL DEFAULT false;
+-- For a web client: when its browser last opened the page (the device itself is the plugin, always connected)
+ALTER TABLE zw_device_status ADD COLUMN IF NOT EXISTS browser_seen_at TIMESTAMPTZ;
+-- For a web client: whether its session is bound to a key of the browser (NULL: the plugin did not say)
+ALTER TABLE zw_device_status ADD COLUMN IF NOT EXISTS browser_bound BOOLEAN;
+
+-- Web client: how many times an unread notification of a channel is sent again (no row: never).
+-- Out of the box only Disaster is repeated.
+CREATE TABLE IF NOT EXISTS zw_channel_web_repeat (
+	channel_id TEXT PRIMARY KEY REFERENCES zw_channel(id) ON DELETE CASCADE,
+	repeats    INT NOT NULL CHECK (repeats BETWEEN 0 AND 20),
+	every_s    INT CHECK (every_s BETWEEN 60 AND 86400) -- NULL: the interval of the settings
+);
+INSERT INTO zw_channel_web_repeat (channel_id, repeats) VALUES ('sev_5', 3) ON CONFLICT DO NOTHING;
+-- Web client: this user's sessions must be bound to a key of the browser, even when the setting does not ask it of everyone
+ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS web_require_bound BOOLEAN NOT NULL DEFAULT false;
 `

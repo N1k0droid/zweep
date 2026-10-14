@@ -5,6 +5,8 @@ package net.nicodroid.zweep.core
 
 import java.security.MessageDigest
 import java.text.Normalizer
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /** Checksum of a problem list, identical to the server (internal/api.Checksum) */
 fun problemsChecksum(rows: Collection<ProblemRow>): String {
@@ -60,6 +62,27 @@ const val LIST_KEEP_MS = 7 * 24 * 3600_000L
 
 /** Milliseconds of an RFC 3339 time of the server, null if absent or invalid */
 fun isoMillis(s: String?): Long? = s?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
+
+/**
+ * Whether the actions of an update, as Zabbix lists them in {EVENT.UPDATE.ACTION} ("acknowledged and
+ * commented", "acknowledged, commented and changed severity from High to Disaster"), include the
+ * acknowledgement. "unacknowledged" is not one.
+ */
+fun isAckAction(action: String): Boolean = action.replace(" and ", ", ").split(", ").any { it.trim() == "acknowledged" }
+
+/**
+ * Who acknowledged, from the body of an update message; null when the update is not an
+ * acknowledgement, empty when it is but nobody can be named. Made from Zweep: the user the server
+ * vouches for (zweep_user: it sent that acknowledgement to Zabbix itself). Otherwise the user Zabbix
+ * names, unless it is "Inaccessible user" (the recipient may not see who made the update). The name
+ * is never read from the text of the message, which anybody in Zabbix can write.
+ */
+fun ackAuthor(body: String): String? = runCatching {
+    val u = WireJson.parseToJsonElement(body).jsonObject["update"]?.jsonObject ?: return@runCatching null
+    if (!isAckAction(u["action"]?.jsonPrimitive?.content ?: "")) return@runCatching null
+    u["zweep_user"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }?.let { return@runCatching it }
+    (u["user"]?.jsonPrimitive?.content ?: "").takeIf { it != "Inaccessible user" } ?: ""
+}.getOrNull()
 
 /**
  * Normalizes the text of an ack like the server: NFC, control characters removed except newlines,

@@ -143,8 +143,12 @@ data class AckEntity(
     val reason: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
+    /** "ack": acknowledge with the message; "message": the message alone (Update) */
+    @ColumnInfo(defaultValue = "ack") val action: String = ACTION_ACK,
 ) {
     companion object {
+        const val ACTION_ACK = "ack"
+        const val ACTION_MESSAGE = "message"
         const val QUEUED = "queued"
         const val ACCEPTED = "accepted"
         const val CONFIRMED = "confirmed"
@@ -399,7 +403,7 @@ interface SettingDao {
         ServerEntity::class, MessageEntity::class, ReceiptEntity::class, ProblemEntity::class,
         SourceEntity::class, ChannelEntity::class, AckEntity::class, SettingEntity::class,
     ],
-    version = 2,
+    version = 3,
 )
 abstract class ZweepDb : RoomDatabase() {
     abstract fun servers(): ServerDao
@@ -434,6 +438,13 @@ abstract class ZweepDb : RoomDatabase() {
             }
         }
 
+        /** Update: a message to a problem without acknowledging it */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ack ADD COLUMN action TEXT NOT NULL DEFAULT 'ack'")
+            }
+        }
+
         /**
          * The database lives in device-protected storage (Direct Boot): alarms can be received
          * after a reboot before the first unlock. It holds no Zabbix secret.
@@ -441,7 +452,7 @@ abstract class ZweepDb : RoomDatabase() {
         fun get(context: Context): ZweepDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext.createDeviceProtectedStorageContext(), ZweepDb::class.java, "zweep.db",
-            ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
         }
     }
 }

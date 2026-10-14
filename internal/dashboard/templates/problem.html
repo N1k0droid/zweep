@@ -29,8 +29,8 @@
   <h2>{{.T "problems.notified"}}</h2>
   {{with index .Data "Deliveries"}}
   <table>
-    <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.kind"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
-    <tbody>{{range .}}<tr><td class="nowrap">{{ts .CreatedAt}}</td><td>{{.Username}} <span class="muted small">{{.Device}}</span></td><td>{{$.T (print "kind." .Kind)}}</td><td><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span></td></tr>{{end}}</tbody>
+    <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.kind"}}</th><th class="st">{{$.T "col.state"}}</th></tr></thead>
+    <tbody>{{range .}}<tr><td class="nowrap">{{ts .CreatedAt}}</td><td>{{.Username}} <span class="muted small">{{.Device}}</span></td><td>{{$.T (print "kind." .Kind)}}</td><td class="st"><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span></td></tr>{{end}}</tbody>
   </table>
   {{else}}<p class="muted">{{.T "problems.not_notified"}}</p>{{end}}
 </section>

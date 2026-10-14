@@ -1,6 +1,6 @@
 # Zweep for Zabbix — security and regulatory compliance
 
-Status: version 1.0.3 (2026-10-06). This document maps the design of the Zweep server to NIS2,
+Status: version 1.1.0 (2026-10-14). This document maps the design of the Zweep server to NIS2,
 ISO/IEC 27001, the Cyber Resilience Act and the AI Act. It is maintained with the code: a change that
 affects a control updates this file in the same commit.
 
@@ -22,9 +22,18 @@ Not legal advice: organizations that rely on this mapping should have it reviewe
 | Devices: name, model, OS/app version, permissions, last seen | `zw_device*` | yes (device of an identified person) | revocable, deleted with the user |
 | Audit trail: actor, action, target, IP address | `zw_audit` | yes | retention setting, admin-only access |
 | Secrets: webhook secrets, Zabbix API tokens | `zw_source` | no | AES-256-GCM with the master key, never returned or logged |
+| Web client plugin (optional, off by default): per browser the device token, the push subscription, the last 100 alarms, the address and time of the last visit, the public half of the browser key; per user the hash of the confirmation code | one file of the plugin, outside the database | yes | the whole file AES-256-GCM with the key of the plugin; dropped when the client logs out, is revoked or the web client is turned off |
 
 No data leaves the installation: Zweep has no telemetry, no external calls other than the
 configured Zabbix API endpoints.
+
+**One exception, only if the optional web client is turned on.** Its notifications reach browsers
+through the push service of the browser vendor (Apple, Google, Mozilla, Microsoft). The content is
+encrypted for the browser alone (RFC 8291): the vendor cannot read it, but it processes the address of
+the subscription, the time and the size of each notification. That makes the vendor a recipient of
+metadata about your operators' devices: record it where your obligations require (GDPR records of
+processing, supplier lists). With *minimal notifications* on, even the encrypted content carries no
+host or alarm name. The Android app uses no such service.
 
 ## 2. EU AI Act (Regulation (EU) 2024/1689)
 

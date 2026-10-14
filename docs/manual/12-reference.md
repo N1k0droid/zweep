@@ -238,7 +238,9 @@ process metrics are exported.
 | `admin.user.*`, `admin.perimeter.*`, `admin.usergroup.*`, `admin.source.*`, `admin.channel.*`, `admin.setting.update`, `admin.tls.update` | configuration changes (dashboard or admin API) |
 | `admin.enrollment.create`, `device.enrolled`, `device.enroll_failed`, `device.token_rotated`, `device.logout`, `admin.device.revoke`, `device.unreachable`, `device.test_alarm` | devices |
 | `delivery.unconfirmed` | a delivery exhausted its retries |
-| `ack.accepted`, `alert.close` | acknowledgements and forced closes |
+| `ack.accepted`, `alert.close` | acknowledgements, or messages without acknowledgement (`action` in the details), and forced closes |
+| `device.connected` | a device connected from a new address |
+| `web.code.blocked`, `web.session.expired`, `web.session.unbound`, `admin.web.repeats`, `admin.web.disabled` | web client: confirmation code blocked; client disconnected because not opened for too long, or not bound to its browser in time; repeats of the channels changed; web client turned off (its devices revoked) |
 | `announce.send`, `announce.resolve` | test messages and announcements |
 | `tls.cert_obtained`, `tls.cert_failed` | certificates |
 | `backup.created`, `backup.failed`, `backup.restored`, `dashboard.backup_requested`, `dashboard.backup_download` | backups |
@@ -258,6 +260,7 @@ The exact list is visible in the filter of the **Audit** page.
 | Admin port | `127.0.0.1:8081` (`:8081` in the image) |
 | Plain port (ACME, redirect) | off (`ZWEEP_LISTEN_PLAIN`) |
 | Metrics port | off (`ZWEEP_METRICS_LISTEN_HTTP`) |
+| Web client plugin (optional, separate service) | `:8090`, state in `/var/lib/zweep-web` (chapter 13.4) |
 | Container user | `nonroot` (65532) |
 | Backup files | `zweep-backup-YYYYMMDD-HHMMSS.zwbk` |
 | Database tables | `zw_*` |

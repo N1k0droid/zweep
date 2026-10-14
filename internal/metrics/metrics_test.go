@@ -50,7 +50,7 @@ var expected = []string{
 	"zweep_messages_stored", "zweep_oldest_message_age_seconds", "zweep_oldest_pending_age_seconds", "zweep_outbox_pending",
 	"zweep_projection_problems", "zweep_projection_stale", "zweep_rate_limited_total", "zweep_receipts_total",
 	"zweep_recovery_window_seconds", "zweep_resyncs_total", "zweep_retention_deleted_total", "zweep_retention_last_run_timestamp",
-	"zweep_retries_total", "zweep_start_time_seconds", "zweep_tls_cert_expiry_seconds", "zweep_tls_error", "zweep_up", "zweep_users_with_online_device", "zweep_webhook_collisions_total",
+	"zweep_retries_total", "zweep_start_time_seconds", "zweep_tls_cert_expiry_seconds", "zweep_tls_error", "zweep_up", "zweep_users_with_online_device", "zweep_web_devices", "zweep_webhook_collisions_total",
 	"zweep_webhook_duplicate_source_total", "zweep_webhook_ip_rejected_total", "zweep_webhook_outside_filter_total",
 	"zweep_webhook_requests_total", "zweep_webhook_unknown_source_total", "zweep_ws_connections", "zweep_ws_connects_total",
 	"zweep_ws_disconnects_total", "zweep_zbx_api_errors_total", "zweep_zbx_poll_duration_seconds",

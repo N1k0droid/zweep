@@ -24,7 +24,7 @@
 <h2>{{.T "status.sources"}}</h2>
 {{with index .Data "Sources"}}
 <table>
-  <thead><tr><th>{{$.T "col.source"}}</th><th>{{$.T "col.api"}}</th><th>{{$.T "col.zabbix"}}</th><th>{{$.T "col.data_as_of"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <thead><tr><th>{{$.T "col.source"}}</th><th>{{$.T "col.api"}}</th><th>{{$.T "col.zabbix"}}</th><th>{{$.T "col.data_as_of"}}</th><th class="st">{{$.T "col.state"}}</th></tr></thead>
   <tbody>
   {{range .}}
   <tr>
@@ -32,7 +32,7 @@
     <td>{{$.T (print "mode." .Mode)}}</td>
     <td>{{if .Version}}{{.Version}}{{else}}—{{end}}</td>
     <td>{{if .DataAsOf}}{{.DataAsOf}}{{else}}—{{end}}</td>
-    <td>
+    <td class="st">
       {{if not .Enabled}}<span class="pill muted">{{$.T "state.disabled"}}</span>
       {{else if eq .Mode "disabled"}}<span class="pill muted">{{$.T "state.notify_only"}}</span>
       {{else if .NeverPolled}}<span class="pill warn">{{$.T "state.waiting"}}</span>

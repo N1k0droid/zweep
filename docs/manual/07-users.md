@@ -43,6 +43,17 @@ not disconnect the phones already activated. If you do not want to hand out a pa
 it empty and use the QR code. Dashboard accounts (admin, manager) change their own password in
 **My account**.
 
+**A password does not last for ever.** It activates devices for a limited time (7 days by default)
+and a limited number of times (3 for each device the user may have): after that it is *expired* and
+the operator needs a new one, or an activation code. The user page shows *logins left* and when it
+expires. Expiry never disconnects a device already activated. The two limits are settings
+(`password.max_age`, `password.uses_per_device`, chapter 4.3).
+
+**Device limits.** The card **Device limits** on the user page sets how many phones the user may
+activate (default: `devices.max_phones`, 1) and, when the web client is on, whether the user may use
+it and with how many browsers (chapter 13.5). A new activation beyond the limit is refused: revoke the
+old device first.
+
 On the user page you can then:
 
 - set the **perimeter** (7.3) and the **user groups** (7.4);
@@ -163,7 +174,10 @@ Tips:
 
 ## 7.7 Devices
 
-**Devices** lists every phone, with its state:
+**Devices** lists every phone (and every web client, chapter 13.9), with its state and the **last IP
+address** it connected from. A change of address is recorded in the audit trail (`device.connected`),
+and the **Audit** page can be filtered by address.
+
 
 | State | Meaning |
 |---|---|

@@ -4,17 +4,34 @@
 package dashboard
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/n1k0droid/zweep/internal/store"
 )
+
+// deviceList lists the devices to show: those of the web client plugin only while the web client is on,
+// so that nothing of it stays visible once it is turned off
+func (d *Dashboard) deviceList(ctx context.Context, username string) ([]store.DeviceStatus, error) {
+	all, err := d.Store.Devices(ctx, username)
+	if err != nil || d.Hub.Settings().WebClient {
+		return all, err
+	}
+	out := all[:0]
+	for _, dev := range all {
+		if dev.Platform != store.PlatformWeb {
+			out = append(out, dev)
+		}
+	}
+	return out, nil
+}
 
 func (d *Dashboard) deviceRoutes() {
 	d.mux.HandleFunc("GET "+prefix+"/devices", d.page(anyRole, d.devices))
 }
 
 func (d *Dashboard) devices(w http.ResponseWriter, r *http.Request) {
-	all, err := d.Store.Devices(r.Context(), "")
+	all, err := d.deviceList(r.Context(), "")
 	if err != nil {
 		d.unavailable(w, r, err)
 		return

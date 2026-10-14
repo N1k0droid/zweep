@@ -87,6 +87,7 @@ fun ProblemsScreen(vm: AppViewModel, open: (ProblemItem) -> Unit) {
     val hostGroups = all.flatMap { it.row.hostgroups }.distinct()
     var query by remember { mutableStateOf("") }
     var search by rememberSaveable { mutableStateOf(false) }
+    var refreshing by remember { mutableStateOf(false) }
     val list = all.filter { p ->
         p.row.severity in sevShown && inHostGroups(p.row.hostgroups, hgShown) && when (status) {
             "unacked" -> p.row.isOpen && !p.row.acknowledged
@@ -139,10 +140,10 @@ fun ProblemsScreen(vm: AppViewModel, open: (ProblemItem) -> Unit) {
             Text(stringResource(R.string.problems_stale, stale.joinToString()), color = Zw.errorText, fontSize = 13.sp,
                 modifier = Modifier.fillMaxWidth().background(Zw.surface).padding(12.dp))
         }
-        if (list.isEmpty()) {
-            Text(stringResource(R.string.problems_all_clear), color = Zw.textSecondary, modifier = Modifier.padding(24.dp))
-        } else {
+        // Pulled down at the top: the servers are asked again (an empty list can be pulled too)
+        PullToRefresh(refreshing, onRefresh = { refreshing = true; vm.refresh { refreshing = false } }, modifier = Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize()) {
+                if (list.isEmpty()) item { Text(stringResource(R.string.problems_all_clear), color = Zw.textSecondary, modifier = Modifier.fillParentMaxSize().padding(24.dp)) }
                 items(list, key = { "${it.serverRef}/${it.row.source}/${it.row.eventid}" }) { p -> ProblemRowView(p, now, servers.size > 1) { open(p) } }
             }
         }

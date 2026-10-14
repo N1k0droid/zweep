@@ -28,29 +28,68 @@ func (d *Dashboard) settingsRoutes() {
 // settingUnit is how a setting is shown and edited: seconds per unit, or a switch
 type settingUnit struct {
 	Key   string
-	Unit  string // days, minutes, seconds, bool, mode (a switch shown as multi / single)
+	Unit  string // days, minutes, seconds, count, bool, mode (a switch shown as multi / single), url
 	Value int64
 	On    bool
+	Text  string
 }
 
-var settingUnits = []struct{ key, unit string }{
-	{"heartbeat.threshold", "minutes"},
-	{"zbx.poll_interval", "seconds"},
-	{"retention.recovery_window", "days"},
-	{"retention.messages", "days"},
-	{"retention.events", "days"},
-	{"retention.problems", "days"},
-	{"retention.acks", "days"},
-	{"retention.revoked_devices", "days"},
-	{"retention.audit", "days"},
-	{"notifications.repeats", "mode"},
-	{"tracking.shown", "bool"},
-	{"orphans.autoclose", "bool"},
-	{"orphans.after", "minutes"},
-	{"app.public_download", "bool"},
+// settingSections are the entries of the menu of the settings page, in order; "danger" has no settings
+// of its own (the operations that cannot be undone) and is offered to administrators only
+var settingSections = []string{"notifications", "zabbix", "retention", "access", "web", "danger"}
+
+var settingUnits = []struct{ key, unit, section string }{
+	{"notifications.repeats", "mode", "notifications"},
+	{"tracking.shown", "bool", "notifications"},
+	{"heartbeat.threshold", "minutes", "notifications"},
+	{"zbx.poll_interval", "seconds", "zabbix"},
+	{"orphans.autoclose", "bool", "zabbix"},
+	{"orphans.after", "minutes", "zabbix"},
+	{"retention.recovery_window", "days", "retention"},
+	{"retention.messages", "days", "retention"},
+	{"retention.events", "days", "retention"},
+	{"retention.problems", "days", "retention"},
+	{"retention.acks", "days", "retention"},
+	{"retention.revoked_devices", "days", "retention"},
+	{"retention.audit", "days", "retention"},
+	{"password.max_age", "days", "access"},
+	{"password.uses_per_device", "count", "access"},
+	{"devices.max_phones", "count", "access"},
+	{"app.public_download", "bool", "access"},
+	{"web.enabled", "bool", "web"},
+	{"web.url", "url", "web"},
+	{"web.password_login", "bool", "web"},
+	{"web.zabbix_link", "bool", "web"},
+	{"web.minimal_notifications", "bool", "web"},
+	{"web.require_notifications", "bool", "web"},
+	{"web.require_bound", "bool", "web"},
+	{"web.unbound_grace", "days", "web"},
+	{"web.session_idle", "days", "web"},
+	{"devices.max_web", "count", "web"},
+	{"web.push_burst", "count", "web"},
+	{"web.push_interval", "seconds", "web"},
+	{"web.push_burst_disaster", "count", "web"},
+	{"web.push_interval_disaster", "seconds", "web"},
+	{"web.push_rate", "count", "web"},
 }
 
-var unitSeconds = map[string]int64{"days": 86400, "minutes": 60, "seconds": 1}
+// settingsURL is the page of the section a setting belongs to
+func settingsURL(key string) string {
+	for _, s := range settingUnits {
+		if s.key == key {
+			return prefix + "/settings?s=" + s.section
+		}
+	}
+	return prefix + "/settings?s=" + settingSections[0]
+}
+
+// webOnlySettings are shown only while the web client is on: off, nothing of it stays on the page
+// but its switch
+var webOnlySettings = map[string]bool{"web.url": true, "web.password_login": true, "web.zabbix_link": true, "web.minimal_notifications": true, "web.require_bound": true, "web.require_notifications": true, "web.unbound_grace": true,
+	"web.session_idle": true, "devices.max_web": true,
+	"web.push_burst": true, "web.push_interval": true, "web.push_burst_disaster": true, "web.push_interval_disaster": true, "web.push_rate": true}
+
+var unitSeconds = map[string]int64{"days": 86400, "minutes": 60, "seconds": 1, "count": 1}
 
 func (d *Dashboard) settings(w http.ResponseWriter, r *http.Request) {
 	st, err := d.Store.LoadSettings(r.Context())
@@ -59,18 +98,30 @@ func (d *Dashboard) settings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	values := st.SettingsMap()
+	// One section at a time, chosen from the menu: the page stays short
+	section := settingSections[0]
+	for _, id := range settingSections {
+		if id == r.URL.Query().Get("s") {
+			section = id
+		}
+	}
 	var rows []settingUnit
 	for _, s := range settingUnits {
+		if s.section != section || (webOnlySettings[s.key] && !st.WebClient) {
+			continue
+		}
 		row := settingUnit{Key: s.key, Unit: s.unit}
 		switch v := values[s.key].(type) {
 		case bool:
 			row.On = v
+		case string:
+			row.Text = v
 		case int64:
 			row.Value = v / unitSeconds[s.unit]
 		}
 		rows = append(rows, row)
 	}
-	d.render(w, r, http.StatusOK, "settings", map[string]any{"Rows": rows, "ErrKey": r.URL.Query().Get("key"), "ErrMsg": r.URL.Query().Get("error"),
+	d.render(w, r, http.StatusOK, "settings", map[string]any{"Rows": rows, "Section": section, "Sections": settingSections, "ErrKey": r.URL.Query().Get("key"), "ErrMsg": r.URL.Query().Get("error"),
 		"Danger": dangerData(r)})
 }
 
@@ -89,30 +140,33 @@ func (d *Dashboard) settingSave(w http.ResponseWriter, r *http.Request) {
 		return
 	case "bool", "mode":
 		value = r.PostFormValue("value") == "1"
+	case "url":
+		value = strings.TrimSpace(r.PostFormValue("value"))
 	default:
 		n, err := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("value")), 10, 64)
 		if err != nil || n < 0 {
-			http.Redirect(w, r, prefix+"/settings?key="+url.QueryEscape(key)+"&error="+url.QueryEscape("invalid number")+"#"+key, http.StatusSeeOther)
+			http.Redirect(w, r, settingsURL(key)+"&key="+url.QueryEscape(key)+"&error="+url.QueryEscape("invalid number")+"#"+key, http.StatusSeeOther)
 			return
 		}
 		value = n * unitSeconds[unit]
 	}
 	res := d.call(r, "PUT", "/v1/admin/settings/"+url.PathEscape(key), map[string]any{"value": value})
 	if !res.OK() {
-		http.Redirect(w, r, prefix+"/settings?key="+url.QueryEscape(key)+"&error="+url.QueryEscape(res.Message())+"#"+key, http.StatusSeeOther)
+		http.Redirect(w, r, settingsURL(key)+"&key="+url.QueryEscape(key)+"&error="+url.QueryEscape(res.Message())+"#"+key, http.StatusSeeOther)
 		return
 	}
 	if r.PostFormValue("back") == "downloads" {
 		http.Redirect(w, r, prefix+"/downloads?done=saved#app", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, prefix+"/settings?done=saved#"+key, http.StatusSeeOther)
+	http.Redirect(w, r, settingsURL(key)+"&done=saved#"+key, http.StatusSeeOther)
 }
 
 // ---- audit ----
 
 func (d *Dashboard) auditQuery(r *http.Request) store.AuditQuery {
-	q := store.AuditQuery{Action: strings.TrimSpace(r.URL.Query().Get("action")), Actor: strings.TrimSpace(r.URL.Query().Get("actor")), Limit: 300}
+	q := store.AuditQuery{Action: strings.TrimSpace(r.URL.Query().Get("action")), Actor: strings.TrimSpace(r.URL.Query().Get("actor")),
+		IP: strings.TrimSpace(r.URL.Query().Get("ip")), Limit: 300}
 	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
 	if days <= 0 || days > 3650 {
 		days = 7
@@ -152,7 +206,7 @@ func (d *Dashboard) auditPage(w http.ResponseWriter, r *http.Request) {
 		views = append(views, view{AuditEntry: e, DetailLines: lines})
 	}
 	days := int(time.Since(q.Since).Hours()/24 + 0.5)
-	d.render(w, r, http.StatusOK, "audit", map[string]any{"Rows": views, "Action": q.Action, "Actor": q.Actor, "Days": days,
+	d.render(w, r, http.StatusOK, "audit", map[string]any{"Rows": views, "Action": q.Action, "Actor": q.Actor, "IP": q.IP, "Days": days,
 		"Query": r.URL.RawQuery})
 }
 
@@ -165,7 +219,7 @@ func (d *Dashboard) auditCSV(w http.ResponseWriter, r *http.Request) {
 		d.unavailable(w, r, err)
 		return
 	}
-	d.audit(r, "dashboard.audit_export", "", "ok", map[string]any{"rows": len(entries), "action": q.Action, "actor": q.Actor})
+	d.audit(r, "dashboard.audit_export", "", "ok", map[string]any{"rows": len(entries), "action": q.Action, "actor": q.Actor, "ip": q.IP})
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="zweep-audit-`+time.Now().Format("20060102-1504")+`.csv"`)
 	cw := csv.NewWriter(w)

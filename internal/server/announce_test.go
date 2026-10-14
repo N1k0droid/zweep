@@ -59,6 +59,18 @@ func TestDashboard_Announcements(t *testing.T) {
 	bad.Set("channel", "nope")
 	require.Equal(t, 400, b.post("/admin/test", bad).code)
 
+	// A custom channel shows the message only on the phones that have it: refused while a recipient
+	// does not, and the page offers the channel only to who has it
+	pg = b.post("/admin/test", send)
+	require.Equal(t, 400, pg.code)
+	require.Contains(t, pg.body, `id="err-channel"`)
+	_, cerr := e.s.store.SetChannelUsers(ctx, "c_zweep", []string{"mario"})
+	require.Nil(t, cerr)
+	require.Equal(t, 400, b.post("/admin/test", send).code) // luigi does not have it yet
+	require.Contains(t, b.get("/admin/test").body, `data-members="mario"`)
+	_, cerr = e.s.store.SetChannelUsers(ctx, "c_zweep", []string{"mario", "luigi"})
+	require.Nil(t, cerr)
+
 	pg = b.post("/admin/test", send)
 	require.Equal(t, "/admin/test", pg.path)
 	require.Contains(t, pg.body, "Planned maintenance 22:00-23:00") // in the open announcements

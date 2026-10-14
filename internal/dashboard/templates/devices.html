@@ -6,14 +6,15 @@
 </div>
 {{with index .Data "Devices"}}
 <table>
-  <thead><tr><th>{{$.T "col.device"}}</th><th>{{$.T "field.username"}}</th><th>{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
+  <thead><tr><th>{{$.T "col.device"}}</th><th>{{$.T "field.username"}}</th><th class="st">{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th>{{$.T "col.last_ip"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
   <tbody>
   {{range .}}
   <tr>
-    <td><b>{{.Name}}</b><br><span class="muted small">{{.Vendor}} {{.Model}} · {{.OSVersion}}</span></td>
+    <td><b>{{.Name}}</b>{{if eq .Platform "web"}} <span class="pill muted">{{$.T "device.web"}}</span>{{end}}<br><span class="muted small">{{.Vendor}} {{.Model}}{{with .OSVersion}} · {{.}}{{end}}{{if .Unbound}} · <span class="warn-text" title="{{$.T "device.unbound_hint"}}">{{$.T "device.unbound"}}</span>{{else if .Bound}} · <span title="{{$.T "device.bound_hint"}}">{{$.T "device.bound"}}</span>{{end}}</span></td>
     <td><a href="/admin/users/{{.Username}}">{{.Username}}</a></td>
-    <td>{{if .RevokedAt}}<span class="pill muted">{{$.T "device.revoked"}}</span>{{else}}<span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span>{{end}}</td>
-    <td>{{since .LastSeenAt}}</td>
+    <td class="st">{{if .RevokedAt}}<span class="pill muted">{{$.T "device.revoked"}}</span>{{else}}<span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span>{{end}}</td>
+    <td>{{if eq .Platform "web"}}{{with .BrowserSeenAt}}{{since .}}{{else}}<span class="muted">—</span>{{end}} <span title="{{$.T "device.browser_seen_hint"}}">({{$.T "device.browser_seen"}})</span>{{else}}{{since .LastSeenAt}}{{end}}</td>
+    <td class="nowrap">{{with .LastIP}}<code translate="no">{{.}}</code>{{else}}<span class="muted">—</span>{{end}}{{if and .LastIP (eq .Platform "web") (not .IPReported)}} <span title="{{$.T "device.ip_plugin_hint"}}">({{$.T "device.ip_plugin"}})</span>{{end}}</td>
     <td class="num ver">{{.AppVersion}}{{if and .AppBuild $.Data.LatestBuild (lt .AppBuild $.Data.LatestBuild)}} <span class="pill warn" title="{{$.T "apk.outdated_hint"}}">{{$.T "apk.outdated"}}</span>{{end}}</td>
     <td class="num">{{.Pending}}{{if .Unconfirmed}} <span class="pill err">{{.Unconfirmed}} {{$.T "status.unconfirmed"}}</span>{{end}}</td>
     {{if $.IsAdmin}}<td>{{if not .RevokedAt}}<form autocomplete="off" method="post" action="/admin/devices/{{.ID}}/revoke" data-confirm="{{$.T "device.revoke_confirm"}}">

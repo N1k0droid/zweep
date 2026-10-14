@@ -40,11 +40,13 @@ Three principles guide the whole design:
   the Zweep dashboard (or a Zweep account, separate from Zabbix and from the domain); the app never
   connects to Zabbix. In Zabbix they need a user only as the
   recipient of the media type, without frontend access.
-- **On-premises, nothing in between**: the app connects only to your Zweep server, next to Zabbix:
-  no cloud, no third-party push service (not even Google's).
-- **Works without internet**: on the company network alone (Wi-Fi, VPN) alarms keep arriving even
-  when the internet connection is down, which is often exactly when they matter. Services in the cloud
-  and push notifications need the internet.
+- **On-premises, nothing in between**: the Android app connects only to your Zweep server, next to
+  Zabbix: no cloud, no third-party push service (not even Google's).
+- **Works without internet**: with the server and the Android app, on the company network alone
+  (Wi-Fi, VPN) alarms keep arriving even when the internet connection is down, which is often exactly
+  when they matter. Services in the cloud and push notifications need the internet.
+- **Zweep Web, if you want it**: an optional plugin for iPhone, iPad and computers. Its notifications
+  are push notifications, so it is the one part of Zweep that needs the internet (chapter 13).
 - **No costs**: no subscription, no per-message fees, no SMS gateway. Free software.
 - **An app only for monitoring**: alarms do not mix with the chats of Telegram, WhatsApp or Teams,
   where they are easily muted or ignored; every severity and channel has its own sound.

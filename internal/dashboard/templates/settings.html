@@ -2,8 +2,14 @@
 {{define "content"}}
 <h1>{{.T "nav.settings"}}</h1>
 <nav class="subtabs"><a href="/admin/settings" class="on" aria-current="page">{{.T "settings.tab_general"}}</a><a href="/admin/https">HTTPS</a></nav>
+<div class="sidecols">
+<nav class="sidemenu" aria-label="{{.T "nav.settings"}}">
+  {{range index .Data "Sections"}}{{if or $.IsAdmin (ne . "danger")}}<a href="/admin/settings?s={{.}}"{{if eq . (index $.Data "Section")}} class="on" aria-current="page"{{end}}>{{$.T (print "settings.section." .)}}</a>{{end}}{{end}}
+</nav>
+<div>
+{{if ne (index .Data "Section") "danger"}}
 <p class="muted small">{{.T "settings.hint"}}</p>
-<table>
+<table class="settings">
   <thead><tr><th>{{.T "settings.name"}}</th><th>{{.T "settings.value"}}</th></tr></thead>
   <tbody>
   {{range index .Data "Rows"}}
@@ -17,21 +23,23 @@
           <select name="value"><option value="1"{{if .On}} selected{{end}}>{{$.T "settings.multi"}}</option><option value="0"{{if not .On}} selected{{end}}>{{$.T "settings.single"}}</option></select>
         {{else if eq .Unit "bool"}}
           <select name="value"><option value="1"{{if .On}} selected{{end}}>{{$.T "settings.on"}}</option><option value="0"{{if not .On}} selected{{end}}>{{$.T "settings.off"}}</option></select>
+        {{else if eq .Unit "url"}}
+          <input name="value" type="url" value="{{.Text}}" placeholder="https://" spellcheck="false" autocapitalize="off">
         {{else}}
-          <input name="value" type="number" min="0" value="{{.Value}}" class="num"> <span class="muted">{{$.T (print "unit." .Unit)}}</span>
+          <span class="unitbox">{{if ne .Unit "count"}}<span class="u">{{$.T (print "unit." .Unit)}}</span>{{end}}<input name="value" type="number" min="0" value="{{.Value}}" class="num"></span>
         {{end}}
         <button class="small">{{$.T "action.save"}}</button>
       </form>
       {{if eq .Key (index $.Data "ErrKey")}}<span class="field-err" role="alert">{{index $.Data "ErrMsg"}}</span>{{end}}
       {{else}}
-        {{if eq .Unit "mode"}}{{if .On}}{{$.T "settings.multi"}}{{else}}{{$.T "settings.single"}}{{end}}{{else if eq .Unit "bool"}}{{if .On}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}{{else}}{{.Value}} {{$.T (print "unit." .Unit)}}{{end}}
+        {{if eq .Unit "mode"}}{{if .On}}{{$.T "settings.multi"}}{{else}}{{$.T "settings.single"}}{{end}}{{else if eq .Unit "bool"}}{{if .On}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}{{else if eq .Unit "url"}}{{.Text}}{{else}}{{.Value}}{{if ne .Unit "count"}} {{$.T (print "unit." .Unit)}}{{end}}{{end}}
       {{end}}
     </td>
   </tr>
   {{end}}
   </tbody>
 </table>
-{{if $.IsAdmin}}{{with index .Data "Danger"}}
+{{else if $.IsAdmin}}{{with index .Data "Danger"}}
 <section class="card danger-zone" id="danger">
   <h2>{{$.T "danger.title"}}</h2>
   <p class="muted small">{{$.T "danger.hint"}}</p>
@@ -46,4 +54,6 @@
   {{end}}
 </section>
 {{end}}{{end}}
+</div>
+</div>
 {{end}}

@@ -33,7 +33,7 @@ services:
     networks: [zweep]
 
   zweep:
-    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.0.3}
+    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.1.0}
     restart: unless-stopped
     depends_on:
       db:
@@ -45,6 +45,7 @@ services:
       ZWEEP_TRUSTED_PROXIES: ${ZWEEP_TRUSTED_PROXIES:-}
       ZWEEP_LISTEN_PLAIN: ${ZWEEP_LISTEN_PLAIN:-}
       ZWEEP_ADMIN_ALLOWED_IPS: ${ZWEEP_ADMIN_ALLOWED_IPS:-}
+      ZWEEP_WEB_PLUGIN_IPS: ${ZWEEP_WEB_PLUGIN_IPS:-}
       ZWEEP_METRICS_LISTEN_HTTP: ${ZWEEP_METRICS_LISTEN_HTTP:-}
       ZWEEP_METRICS_ALLOWED_IPS: ${ZWEEP_METRICS_ALLOWED_IPS:-}
       ZWEEP_BACKUP_DIR: /backups
@@ -63,6 +64,48 @@ services:
       - "127.0.0.1:${ZWEEP_ADMIN_PORT:-8081}:8081"  # dashboard: host loopback only (manual 3.6)
       # Let's Encrypt HTTP-01 challenges (Settings → HTTPS): set ZWEEP_LISTEN_PLAIN=:8090 in .env and uncomment
       # - "80:8090"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [zweep]
+
+  # Optional: the web client plugin (browsers of iPhones and desktops). It does not start unless asked:
+  #   head -c 32 /dev/urandom > secrets/web.key && chmod 600 secrets/web.key
+  #   mkdir -p web-data && sudo chown 65532:65532 web-data secrets/web.key
+  #   set ZWEEP_WEB_PUBLIC_URL in .env, then: docker compose --profile web up -d
+  # It talks to Zweep as a phone would and needs outbound HTTPS to the push services of the browsers.
+  # Publish it behind a reverse proxy with a certificate the browsers trust. Then turn "Web client" on
+  # in the settings of the dashboard and allow it user by user.
+  web:
+    profiles: [web]
+    image: ${ZWEEP_IMAGE:-ghcr.io/n1k0droid/zweep:1.1.0}
+    restart: unless-stopped
+    entrypoint: ["/usr/bin/zweep-web"]
+    command: ["serve"]
+    depends_on:
+      zweep:
+        condition: service_healthy
+    environment:
+      ZWEEP_WEB_ZWEEP_URL: http://zweep:8080
+      ZWEEP_WEB_PUBLIC_URL: ${ZWEEP_WEB_PUBLIC_URL:-}
+      ZWEEP_WEB_KEY_FILE: /run/secrets/web.key
+      ZWEEP_WEB_TRUSTED_PROXIES: ${ZWEEP_WEB_TRUSTED_PROXIES:-}
+      ZWEEP_WEB_CLIENT_ALLOWED_IPS: ${ZWEEP_WEB_CLIENT_ALLOWED_IPS:-}
+      ZWEEP_WEB_CODE_GRACE: ${ZWEEP_WEB_CODE_GRACE:-5m}
+      ZWEEP_WEB_LOG_LEVEL: ${ZWEEP_LOG_LEVEL:-info}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./secrets/web.key:/run/secrets/web.key:ro
+      - ./web-data:/var/lib/zweep-web
+    ports:
+      - "127.0.0.1:${ZWEEP_WEB_PORT:-8090}:8090"   # host loopback: the reverse proxy forwards to it
+    healthcheck:
+      test: ["CMD", "/usr/bin/zweep-web", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     read_only: true
     security_opt:
       - no-new-privileges:true

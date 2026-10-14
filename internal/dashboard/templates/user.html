@@ -26,7 +26,19 @@
 </section>
 {{end}}
 
-{{if index .Data "EnrollCode"}}
+{{if index .Data "EnrollWeb"}}
+<section class="card highlight">
+  <h2>{{.T "enroll.web_title"}}</h2>
+  <div class="enroll">
+    {{with index .Data "EnrollQR"}}<img class="qr" src="{{.}}" alt="QR" width="246" height="246">{{end}}
+    <div>
+      <p>{{.T "enroll.web_scan"}}</p>
+      <p class="small"><code translate="no" class="secret">{{index .Data "EnrollWeb"}}</code></p>
+      <p class="muted small">{{.T "enroll.expires" (index .Data "EnrollExpires")}}</p>
+    </div>
+  </div>
+</section>
+{{else if index .Data "EnrollCode"}}
 <section class="card highlight">
   <h2>{{.T "enroll.title"}}</h2>
   <div class="enroll">
@@ -118,10 +130,44 @@
   </form>
   {{else}}<p class="muted">{{.T "channels.none"}}</p>{{end}}
 </section>
+{{with index .Data "Rules"}}{{$r := .}}
+<section class="card" id="rules">
+  <h2>{{$.T "rules.title"}}</h2>
+  <p class="muted small">{{$.T "rules.hint"}}</p>
+  {{if $.IsAdmin}}
+  <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/limits">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>{{$.T "rules.max_phones"}}<input name="max_phones" type="number" min="0" max="100" class="num" value="{{with $u.MaxPhones}}{{.}}{{end}}" placeholder="{{$r.DefPhones}}">
+      <span class="muted small">{{$.T "rules.now" $r.Phones}} · {{$.T "rules.default" $r.DefPhones}}</span></label>
+    {{if $r.Web}}
+    <label class="check"><input type="checkbox" name="web_enabled" value="1"{{if $u.WebEnabled}} checked{{end}}> {{$.T "rules.web_enabled"}}</label>
+    <p class="muted small">{{$.T "rules.web_enabled_hint"}}</p>
+    {{if $r.BoundAll}}
+    <label class="check"><input type="checkbox" checked disabled> {{$.T "rules.web_require_bound"}}</label>
+    <p class="muted small">{{$.T "rules.web_require_bound_all"}}</p>
+    {{else}}
+    <label class="check"><input type="checkbox" name="web_require_bound" value="1"{{if $u.WebRequireBound}} checked{{end}}> {{$.T "rules.web_require_bound"}}</label>
+    <p class="muted small">{{$.T "rules.web_require_bound_hint"}}</p>
+    {{end}}
+    <label>{{$.T "rules.max_web"}}<input name="max_web" type="number" min="0" max="100" class="num" value="{{with $u.MaxWeb}}{{.}}{{end}}" placeholder="{{$r.DefWeb}}">
+      <span class="muted small">{{$.T "rules.now" $r.WebClients}} · {{$.T "rules.default" $r.DefWeb}}</span></label>
+    {{end}}
+    <div class="actions"><button class="primary">{{$.T "action.save"}}</button></div>
+  </form>
+  {{else}}
+  <p>{{$.T "rules.max_phones"}}: {{with $u.MaxPhones}}{{.}}{{else}}{{$r.DefPhones}}{{end}} ({{$.T "rules.now" $r.Phones}})</p>
+  {{if $r.Web}}<p>{{$.T "rules.web_enabled"}}: {{if $u.WebEnabled}}{{$.T "settings.on"}}{{else}}{{$.T "settings.off"}}{{end}}</p>{{end}}
+  {{end}}
+</section>
+{{end}}
 {{if .IsAdmin}}
 <section class="card">
   <h2>{{.T "field.password"}}</h2>
   <p class="muted small">{{if $u.HasPassword}}{{.T "users.password_is_set"}}{{else}}{{.T "users.password_not_set"}}{{end}}</p>
+  {{if $u.HasPassword}}{{with index .Data "Rules"}}{{with .Pw}}
+  <p>{{if .Expired}}<span class="pill err">{{$.T "rules.pw_expired"}}</span> <span class="muted small">{{$.T "rules.pw_expired_hint"}}</span>{{else}}<span class="pill ok">{{$.T "rules.pw_valid"}}</span>
+    <span class="muted small">{{with .ExpiresAt}}{{$.T "rules.pw_until" (.Local.Format "02/01/2006 15:04")}}{{end}}{{if ge .UsesLeft 0}} · {{$.T "rules.pw_uses_left" .UsesLeft}}{{end}}</span>{{end}}</p>
+  {{end}}{{end}}{{end}}
   <form method="post" action="/admin/users/{{$u.Username}}/password" autocomplete="off">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>{{.T "field.new_password"}}<input name="password" {{.Inv "password"}} type="password" autocomplete="new-password">{{.Err "password"}}</label>
@@ -136,22 +182,30 @@
   </form>
 </section>
 {{end}}
-<section class="card" id="devices">
+</div>
+<section class="card span2" id="devices">
   <div class="head">
     <h2>{{.T "nav.devices"}}</h2>
     {{if .IsAdmin}}{{if not $u.Disabled}}
+    <div class="head-actions">
     <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/enroll"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="primary">{{.T "enroll.create"}}</button></form>
+    {{with index .Data "Rules"}}{{if .WebLink}}
+    <form autocomplete="off" method="post" action="/admin/users/{{$u.Username}}/enroll"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="target" value="web"><button>{{$.T "enroll.web_create"}}</button></form>
+    {{end}}{{end}}
+    </div>
     {{end}}{{end}}
   </div>
+  {{with index .Data "Rules"}}{{if .WebNoURL}}<p class="muted small">{{$.T "enroll.web_no_url"}}</p>{{end}}{{end}}
   {{with index .Data "Devices"}}
   <table>
-    <thead><tr><th>{{$.T "col.device"}}</th><th>{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
+    <thead><tr><th>{{$.T "col.device"}}</th><th class="st">{{$.T "col.state"}}</th><th>{{$.T "col.last_seen"}}</th><th>{{$.T "col.last_ip"}}</th><th class="num">{{$.T "col.app"}}</th><th class="num">{{$.T "col.pending"}}</th>{{if $.IsAdmin}}<th></th>{{end}}</tr></thead>
     <tbody>
     {{range .}}
     <tr>
-      <td><b>{{.Name}}</b><br><span class="muted small">{{.Vendor}} {{.Model}} · {{.OSVersion}}</span></td>
-      <td><span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span></td>
-      <td>{{since .LastSeenAt}}</td>
+      <td><b>{{.Name}}</b>{{if eq .Platform "web"}} <span class="pill muted">{{$.T "device.web"}}</span>{{end}}<br><span class="muted small">{{.Vendor}} {{.Model}}{{with .OSVersion}} · {{.}}{{end}}{{if .Unbound}} · <span class="warn-text" title="{{$.T "device.unbound_hint"}}">{{$.T "device.unbound"}}</span>{{else if .Bound}} · <span title="{{$.T "device.bound_hint"}}">{{$.T "device.bound"}}</span>{{end}}</span></td>
+      <td class="st"><span class="pill {{stateClass .State}}">{{$.T (print "device." .State)}}</span></td>
+      <td>{{if eq .Platform "web"}}{{with .BrowserSeenAt}}{{since .}}{{else}}<span class="muted">—</span>{{end}} <span title="{{$.T "device.browser_seen_hint"}}">({{$.T "device.browser_seen"}})</span>{{else}}{{since .LastSeenAt}}{{end}}</td>
+      <td class="nowrap">{{with .LastIP}}<code translate="no">{{.}}</code>{{else}}<span class="muted">—</span>{{end}}{{if and .LastIP (eq .Platform "web") (not .IPReported)}} <span title="{{$.T "device.ip_plugin_hint"}}">({{$.T "device.ip_plugin"}})</span>{{end}}</td>
       <td class="num ver">{{.AppVersion}}{{if and .AppBuild $.Data.LatestBuild (lt .AppBuild $.Data.LatestBuild)}} <span class="pill warn" title="{{$.T "apk.outdated_hint"}}">{{$.T "apk.outdated"}}</span>{{end}}</td>
       <td class="num">{{.Pending}}{{if .Unconfirmed}} <span class="pill err">{{.Unconfirmed}} {{$.T "status.unconfirmed"}}</span>{{end}}</td>
       {{if $.IsAdmin}}<td><form autocomplete="off" method="post" action="/admin/devices/{{.ID}}/revoke" data-confirm="{{$.T "device.revoke_confirm"}}">
@@ -163,7 +217,6 @@
   </table>
   {{else}}<p class="muted">{{.T "device.none"}}</p>{{end}}
 </section>
-</div>
 {{else if .IsAdmin}}
 <section class="card">
   <h2>{{.T "users.account"}}</h2>

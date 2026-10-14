@@ -21,7 +21,7 @@ English and Italian (**EN/IT** in the header) and works on phones and tablets to
 | **Problems** | all | *Problems in Zabbix* (all problems read by the service users, read only), *Open alerts in Zweep* (alerts still open on the phones, orphans, forced close) and *Outside the perimeter* (notifications delivered outside the permissions of the operator) |
 | **Users** | all (edit: see chapter 7.1) | operators and dashboard accounts, perimeter, groups, channels, activation, devices |
 | **User groups** | all | groups, members, permissions, channels |
-| **Devices** | all (revoke: admin) | every phone and its state |
+| **Devices** | all (revoke: admin) | every phone and web client: state, last contact, last IP address |
 | **Sources** | all (edit: admin) | Zabbix instances, secrets, API, verification |
 | **Channels** | all (edit: admin) | severity channels, custom channels and their rules |
 | **Deliveries** | all | each message to each device: state, timing, retries, why it was not shown |
@@ -29,7 +29,7 @@ English and Italian (**EN/IT** in the header) and works on phones and tablets to
 | **Download** | all | media type for Zabbix (generic or per source), media type script, the Zabbix template that monitors Zweep (chapter 10.1), the Android app (APK, link and QR for the first installation) |
 | **Audit** | all | who did what, when, from where; export CSV |
 | **Logging** | admin | the latest log lines of this node, live |
-| **Settings** (⚙ icon, top right) | admin | *General* (runtime settings, chapter 4.3, and the **Danger zone**) and *HTTPS* (chapter 5) |
+| **Settings** (⚙ icon, top right) | admin | *General* (runtime settings by section, chapter 4.3; the last section is the **Danger zone**) and *HTTPS* (chapter 5) |
 
 ### Status
 

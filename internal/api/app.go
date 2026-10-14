@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -52,6 +53,12 @@ func (s *Service) device(next http.HandlerFunc, scope string) http.HandlerFunc {
 			writeError(w, errForbidden)
 			return
 		}
+		if dev.Platform == store.PlatformWeb {
+			if aerr := s.webAllowed(info.IP); aerr != nil {
+				writeError(w, aerr)
+				return
+			}
+		}
 		go func() {
 			// Outlives the request on purpose; bounded by the service context
 			ctx, cancel := context.WithTimeout(s.baseCtx, 5*time.Second)
@@ -61,6 +68,107 @@ func (s *Service) device(next http.HandlerFunc, scope string) http.HandlerFunc {
 		ctx := context.WithValue(r.Context(), deviceKey{}, dev)
 		next(w, r.WithContext(ctx))
 	}
+}
+
+// webAllowed says whether a device of platform web may be served: the web client must be on and the
+// call must come from where the plugin runs. Zweep never sees the browsers, only the plugin.
+func (s *Service) webAllowed(ip netip.Addr) *apiError {
+	if !s.hub.Settings().WebClient {
+		return errWebDisabled
+	}
+	if len(s.cfg.WebPluginIPs) == 0 || ip.IsLoopback() {
+		return nil
+	}
+	for _, p := range s.cfg.WebPluginIPs {
+		if p.Contains(ip.Unmap()) {
+			return nil
+		}
+	}
+	return errForbidden
+}
+
+// fromPlugin says whether a call comes from the web client plugin the administrator declared
+// (ZWEEP_WEB_PLUGIN_IPS). Only then the address of the browser it reports is believed: with no list,
+// anybody holding a web token could claim any address.
+func (s *Service) fromPlugin(ip netip.Addr) bool {
+	for _, p := range s.cfg.WebPluginIPs {
+		if p.Contains(ip.Unmap()) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleWebEvent records in the audit trail what only the web client plugin sees of a web client: the
+// confirmation code blocked after wrong attempts, a client disconnected because its browser stayed
+// away too long, or because its session had to be bound to the browser and was not. Only for devices
+// of platform web; anything else does not exist.
+func (s *Service) handleWebEvent(w http.ResponseWriter, r *http.Request) {
+	dev := deviceOf(r)
+	var in struct {
+		Event        string `json:"event"`
+		ClientIP     string `json:"client_ip"`
+		Blocks       int    `json:"blocks"`
+		Disconnected bool   `json:"disconnected"`
+	}
+	if dev.Platform != store.PlatformWeb {
+		writeError(w, errNotFound)
+		return
+	}
+	// What the plugin may report, and the audit action of each
+	action := map[string]string{"code_blocked": "web.code.blocked", "session_expired": "web.session.expired", "session_unbound": "web.session.unbound"}
+	if err := readJSON(r, &in, 1<<10); err != nil || action[in.Event] == "" {
+		writeError(w, errBadJSON)
+		return
+	}
+	// The address of the browser, believed only when the call comes from the plugin Zweep knows
+	ip := requestInfo(r).IP
+	if reported, err := netip.ParseAddr(in.ClientIP); err == nil && s.fromPlugin(ip) {
+		ip = reported
+	}
+	details := map[string]any{"device_id": dev.ID.String()}
+	if in.Event == "code_blocked" {
+		details["blocks_24h"], details["disconnected"] = in.Blocks, in.Disconnected
+	}
+	s.audit(r.Context(), store.AuditEntry{ActorType: store.ActorUser, Actor: dev.Username, Action: action[in.Event], Target: dev.Name,
+		IP: ipPtr(ip), Details: details})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleWebStatus tells the web client plugin whether the administrator keeps the web client on, so
+// that it can show its users a notice instead of a login that would fail. Outside the allow-list the
+// endpoint does not exist.
+func (s *Service) handleWebStatus(w http.ResponseWriter, r *http.Request) {
+	aerr := s.webAllowed(requestInfo(r).IP)
+	if aerr == errForbidden {
+		writeError(w, errNotFound)
+		return
+	}
+	st := s.hub.Settings()
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": aerr == nil, "password_login": aerr == nil && st.WebPasswordLogin,
+		"minimal_notifications": aerr == nil && st.WebMinimalNotify,
+		// A browser that did not allow notifications (a private window, among others) is not activated
+		"require_notifications": aerr == nil && st.WebRequireNotify,
+		// How long a browser may stay away, and how long a session that must be bound may go on unbound (0: for ever)
+		"session_idle_s": int64(st.WebSessionIdle.Seconds()), "unbound_grace_s": int64(st.WebUnboundGrace.Seconds()),
+		// Sending limits of a browser in a storm of alarms: notifications at once, then one every so many seconds
+		"push_burst": st.WebPushBurst, "push_every_s": int64(st.WebPushEvery.Seconds()),
+		"push_burst_disaster": st.WebPushBurstDis, "push_every_disaster_s": int64(st.WebPushEveryDis.Seconds()),
+		// Notifications a second to one push service, all browsers together
+		"push_rate": st.WebPushRate})
+}
+
+// requireBound says whether the web session of this device must be bound to a key of its browser: the
+// setting for everyone, or the choice made for its user
+func (s *Service) requireBound(ctx context.Context, dev *store.Device) bool {
+	if dev.Platform != store.PlatformWeb {
+		return false
+	}
+	if s.hub.Settings().WebRequireBound {
+		return true
+	}
+	u, err := s.st.UserByName(ctx, dev.Username)
+	return err == nil && u.WebRequireBound
 }
 
 func deviceOf(r *http.Request) *store.Device {
@@ -80,7 +188,8 @@ func (s *Service) handleStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return // the upgrader already answered
 		}
-		s.hub.Serve(s.baseCtx, conn, dev, requestInfo(r).IP)
+		ip := requestInfo(r).IP
+		s.hub.Serve(s.baseCtx, conn, dev, ip, s.fromPlugin(ip))
 	}, store.ScopeStream)(w, r)
 }
 
@@ -89,6 +198,8 @@ type enrollRequest struct {
 	Username string           `json:"username,omitempty"`
 	Password string           `json:"password,omitempty"`
 	Device   store.DeviceInfo `json:"device"`
+	// ClientIP: from the web client plugin, the address of the browser being activated
+	ClientIP string `json:"client_ip,omitempty"`
 }
 
 type enrollResponse struct {
@@ -121,25 +232,45 @@ func (s *Service) handleEnroll(w http.ResponseWriter, r *http.Request) {
 	if req.Device.Platform == "" {
 		req.Device.Platform = "android"
 	}
-	if req.Device.Platform != "android" && req.Device.Platform != "test" {
+	switch req.Device.Platform {
+	case "android", "test":
+	case store.PlatformWeb:
+		if aerr := s.webAllowed(info.IP); aerr != nil {
+			writeError(w, aerr)
+			return
+		}
+		if req.Code == "" && !s.hub.Settings().WebPasswordLogin {
+			// Unless the administrator allows it, the plugin never sees a password: a code only
+			writeError(w, errorf(http.StatusBadRequest, 40002, "missing_credentials", "a web device is enrolled with a code"))
+			return
+		}
+	default:
 		writeError(w, errorf(http.StatusBadRequest, 40001, "invalid_device", "unsupported platform"))
 		return
+	}
+	// The audit of a web activation carries the address of the browser, when the plugin is trusted
+	reported := false
+	if req.Device.Platform == store.PlatformWeb && s.fromPlugin(info.IP) {
+		if addr, perr := netip.ParseAddr(req.ClientIP); perr == nil {
+			info.IP, reported = addr.Unmap(), true
+		}
 	}
 	ctx := r.Context()
 	var dev *store.Device
 	var token string
 	var err error
 	method := "code"
+	pol := s.enrollPolicy()
 	switch {
 	case req.Code != "":
-		dev, token, err = s.st.EnrollWithCode(ctx, req.Code, req.Device)
+		dev, token, err = s.st.EnrollWithCode(ctx, req.Code, req.Device, pol)
 	case req.Username != "" && req.Password != "":
 		method = "credentials"
 		userID, role, aerr := s.users.AuthenticateUser(ctx, req.Username, req.Password)
 		if aerr != nil || role != store.RoleOperator {
 			err = store.ErrEnrollmentInvalid // admins do not receive notifications
 		} else {
-			dev, token, err = s.st.EnrollUser(ctx, userID, req.Device)
+			dev, token, err = s.st.EnrollUser(ctx, userID, req.Device, pol)
 		}
 	default:
 		writeError(w, errorf(http.StatusBadRequest, 40002, "missing_credentials", "code or username/password required"))
@@ -152,9 +283,20 @@ func (s *Service) handleEnroll(w http.ResponseWriter, r *http.Request) {
 			Outcome: "denied", IP: ipPtr(info.IP), Details: map[string]any{"method": method}})
 		writeError(w, errUnauthorized)
 		return
+	} else if refusal := enrollRefusal(err); refusal != nil {
+		// The credentials were right: the user is told why, and the reason is audited
+		s.audit(ctx, store.AuditEntry{ActorType: store.ActorDevice, Actor: truncate(req.Username, 64), Action: "device.enroll_failed",
+			Outcome: "denied", IP: ipPtr(info.IP), Details: map[string]any{"method": method, "reason": refusal.Err, "platform": req.Device.Platform}})
+		writeError(w, refusal)
+		return
 	} else if err != nil {
 		storeError(w, err)
 		return
+	}
+	if reported {
+		if _, err := s.st.ConnectedFrom(ctx, dev.ID, info.IP, true); err != nil {
+			metrics.DBErrors.Inc()
+		}
 	}
 	s.audit(ctx, store.AuditEntry{ActorType: store.ActorDevice, Actor: dev.ID.String(), Action: "device.enrolled", Target: dev.Username,
 		IP: ipPtr(info.IP), Details: map[string]any{"method": method, "name": dev.Name, "platform": dev.Platform}})
@@ -162,6 +304,27 @@ func (s *Service) handleEnroll(w http.ResponseWriter, r *http.Request) {
 		Token: token, DeviceID: dev.ID.String(), Username: dev.Username, AckedSeq: dev.AckedSeq,
 		ServerID: s.cfg.ServerID, NodeID: s.cfg.NodeID, ServiceURLs: s.serviceURLs(),
 	})
+}
+
+// enrollPolicy reads the rules of an enrollment from the settings
+func (s *Service) enrollPolicy() store.EnrollPolicy {
+	st := s.hub.Settings()
+	return store.EnrollPolicy{MaxPhones: st.MaxPhones, MaxWeb: st.MaxWeb, UsesPerDevice: st.PasswordUsesPerDev,
+		PasswordMaxAge: st.PasswordMaxAge, WebOn: st.WebClient, RequireBound: st.WebRequireBound}
+}
+
+func enrollRefusal(err error) *apiError {
+	switch {
+	case errors.Is(err, store.ErrPasswordExpired):
+		return errPasswordExpired
+	case errors.Is(err, store.ErrDeviceLimit):
+		return errDeviceLimit
+	case errors.Is(err, store.ErrKeyRequired):
+		return errKeyRequired
+	case errors.Is(err, store.ErrWebNotAllowed):
+		return errWebNotAllowed
+	}
+	return nil
 }
 
 // handleRotate issues a new token; the old one stays valid for the grace period
@@ -220,7 +383,8 @@ func (s *Service) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hostgroups := []string{}
-	features := []string{"receipts", "cumulative", "problem_views"} // problem_views: Recent and History
+	// problem_views: Recent and History; ack_message: POST /v1/app/acks takes action "message"
+	features := []string{"receipts", "cumulative", "problem_views", "ack_message"}
 	if a, err := s.st.Access(ctx, dev.UserID); err != nil {
 		storeError(w, err)
 		return
@@ -233,7 +397,7 @@ func (s *Service) handleConfig(w http.ResponseWriter, r *http.Request) {
 	outSources := make([]configSource, 0, len(sources))
 	for _, src := range sources {
 		if src.Enabled {
-			outSources = append(outSources, configSource{ID: src.ID, Name: src.Name(), FrontendURL: src.FrontendURL, APIMode: src.APIMode})
+			outSources = append(outSources, configSource{ID: src.ID, Name: src.Name(), FrontendURL: s.frontendFor(dev, src.FrontendURL), APIMode: src.APIMode})
 		}
 	}
 	outChannels := make([]configChannel, 0, len(channels))
@@ -246,17 +410,18 @@ func (s *Service) handleConfig(w http.ResponseWriter, r *http.Request) {
 		serviceURLs = []string{} // a list, never null
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"server_id":    s.cfg.ServerID,
-		"node_id":      s.cfg.NodeID,
-		"service_urls": serviceURLs,
-		"username":     dev.Username,
-		"device_id":    dev.ID.String(),
-		"sources":      outSources,
-		"channels":     outChannels,
-		"hostgroups":   hostgroups,
-		"features":     features,
-		"keepalive_s":  int64(s.cfg.Keepalive.Seconds()),
-		"track_shown":  settings.TrackShown,
-		"app_update":   s.appUpdate(),
+		"server_id":     s.cfg.ServerID,
+		"node_id":       s.cfg.NodeID,
+		"service_urls":  serviceURLs,
+		"username":      dev.Username,
+		"device_id":     dev.ID.String(),
+		"sources":       outSources,
+		"channels":      outChannels,
+		"hostgroups":    hostgroups,
+		"features":      features,
+		"require_bound": s.requireBound(ctx, dev),
+		"keepalive_s":   int64(s.cfg.Keepalive.Seconds()),
+		"track_shown":   settings.TrackShown,
+		"app_update":    s.appUpdate(),
 	})
 }

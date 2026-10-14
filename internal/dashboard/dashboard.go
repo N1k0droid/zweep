@@ -58,6 +58,7 @@ type Guard interface {
 type Hub interface {
 	Kick(deviceID store.UUID, notice, message string)
 	Notify(userID, notice, message string)
+	Settings() store.Settings
 }
 
 // Deps are the server components the dashboard uses

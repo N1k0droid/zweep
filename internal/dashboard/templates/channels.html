@@ -4,12 +4,12 @@
 <h2>{{.T "channels.severity"}}</h2>
 <p class="muted small">{{.T "channels.severity_hint"}}</p>
 <table>
-  <thead><tr><th>Severity</th><th>{{.T "col.state"}}</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
+  <thead><tr><th>Severity</th><th class="st">{{.T "col.state"}}</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
   <tbody>
   {{range index .Data "Severity"}}
   <tr>
     <td><span translate="no" class="sev sev{{slice .ID 4}}">{{.Name}}</span></td>
-    <td>{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
+    <td class="st">{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
     {{if $.IsAdmin}}<td class="row-actions"><form autocomplete="off" method="post" action="/admin/severity/{{.ID}}">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">
       {{if .Enabled}}<button class="small" name="enabled" value="0">{{$.T "action.disable"}}</button>{{else}}<button class="small" name="enabled" value="1">{{$.T "action.enable"}}</button>{{end}}
@@ -26,14 +26,14 @@
 <p class="muted small">{{.T "channels.custom_hint"}}</p>
 {{with index .Data "Custom"}}
 <table>
-  <thead><tr><th>{{$.T "field.name"}}</th><th>{{$.T "channels.rule"}}</th><th class="num">{{$.T "col.operators"}}</th><th>{{$.T "col.state"}}</th><th></th></tr></thead>
+  <thead><tr><th>{{$.T "field.name"}}</th><th>{{$.T "channels.rule"}}</th><th class="num">{{$.T "col.operators"}}</th><th class="st">{{$.T "col.state"}}</th><th></th></tr></thead>
   <tbody>
   {{range .}}
   <tr>
     <td><span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{with .Description}}<div class="muted small">{{.}}</div>{{end}}</td>
     <td class="small">{{with .Rule}}{{ruleSummary .}}{{end}}</td>
     <td class="num">{{len .Users}}</td>
-    <td>{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
+    <td class="st">{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
     <td class="row-actions">
       <a class="button small" href="/admin/channels/{{.ID}}">{{if $.IsAdmin}}{{$.T "action.edit"}}{{else}}{{$.T "action.open"}}{{end}}</a>
       {{if $.IsAdmin}}<form autocomplete="off" method="post" action="/admin/channels/{{.ID}}/delete" data-confirm="{{$.T "channels.delete_confirm"}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="small danger">{{$.T "action.delete"}}</button></form>{{end}}
@@ -43,4 +43,38 @@
   </tbody>
 </table>
 {{else}}<p class="muted">{{.T "channels.none"}}</p>{{end}}
+{{with index .Data "WebRepeat"}}{{$w := .}}
+<div class="head section" id="web-repeat">
+  <h2>{{$.T "webrepeat.title"}}</h2>
+</div>
+<p class="muted small">{{$.T "webrepeat.hint"}}</p>
+{{if $.IsAdmin}}
+<form autocomplete="off" method="post" action="/admin/web-repeats">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <table class="settings">
+    <thead><tr><th>Channel</th><th>{{$.T "webrepeat.times"}}</th><th>{{$.T "webrepeat.every"}}</th></tr></thead>
+    <tbody>
+    <tr>
+      <td><b>{{$.T "webrepeat.general"}}</b><br><span class="muted small">{{$.T "webrepeat.general_hint"}}</span></td>
+      <td></td>
+      <td><span class="cell"><span class="unitbox"><span class="u">{{$.T "unit.minutes"}}</span><input name="every" type="number" min="1" max="1440" value="{{.Minutes}}" class="num" required></span></span></td>
+    </tr>
+    {{range .Rows}}
+    <tr>
+      <td>{{if .Severity}}<span translate="no" class="sev sev{{slice .ID 4}}">{{.Name}}</span>{{else}}{{.Name}}{{end}}</td>
+      <td><span class="cell"><input name="rep_{{.ID}}" type="number" min="0" max="20" value="{{.Repeats}}" class="num" required></span></td>
+      <td><span class="cell"><span class="unitbox"><span class="u">{{$.T "unit.minutes"}}</span><input name="every_{{.ID}}" type="number" min="1" max="1440" value="{{if .Minutes}}{{.Minutes}}{{end}}" placeholder="{{$w.Minutes}}" class="num"></span></span></td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  <div class="actions below-table"><button class="primary">{{$.T "action.save"}}</button></div>
+</form>
+{{else}}
+<table>
+  <thead><tr><th>Channel</th><th>{{$.T "webrepeat.times"}}</th><th>{{$.T "webrepeat.every"}}</th></tr></thead>
+  <tbody>{{range .Rows}}<tr><td>{{.Name}}</td><td>{{.Repeats}}</td><td>{{if .Minutes}}{{.Minutes}}{{else}}{{$w.Minutes}}{{end}} {{$.T "unit.minutes"}}</td></tr>{{end}}</tbody>
+</table>
+{{end}}
+{{end}}
 {{end}}

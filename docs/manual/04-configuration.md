@@ -109,7 +109,9 @@ one misbehaving client could get the proxy banned for everybody. Always set it.
 
 ## 4.3 Runtime settings
 
-**Dashboard → Settings → General** (admins only; every change is recorded in the audit trail). The admin
+**Dashboard → Settings → General** (admins only; every change is recorded in the audit trail). The page
+shows one section at a time, chosen from the menu on the left: Notifications, Zabbix, Data
+retention, Access and devices, Web client, Danger zone. The admin
 API exposes the same keys (`PUT /v1/admin/settings/{key}` with `{"value": …}`: durations as a number of
 **seconds**, switches as `true`/`false`). In the dashboard each duration is edited in its natural unit
 (days for retentions, minutes for the heartbeat and orphans, seconds for the poll interval).
@@ -130,6 +132,12 @@ API exposes the same keys (`PUT /v1/admin/settings/{key}` with `{"value": …}`:
 | `orphans.autoclose` | on | on/off | Close automatically alerts whose problem no longer exists in Zabbix (see 7.8). Needs the Zabbix API of the source. |
 | `orphans.after` | 1 h | 10 min – 30 days | How long an alert must be missing from Zabbix before it is closed automatically. |
 | `app.public_download` | off | on/off | The APK can be downloaded **without login** from the public port at `/download/zweep.apk` (first installation of the phones, chapter 8.12). Turn it off when the phones are installed. |
+| `password.max_age` | 7 days | 0–365 days | **Password of an operator valid for.** After this time the password no longer activates a device (0: no limit). Devices already activated keep working. |
+| `password.uses_per_device` | 3 | 0–100 | **Logins with the password, per device allowed.** A password activates this many times for each device the user may have, then it expires (0: no limit). Only successful logins count. |
+| `devices.max_phones` | 1 | 0–100 | **Phones per user**: default for the users without a value of their own (0: no limit). Only new activations are refused. |
+| `web.push_burst`, `web.push_interval`, `web.push_burst_disaster`, `web.push_interval_disaster` | 10, 10 s, 20, 5 s | 1–100, 1–300 s | Sending limit of the web client in a storm of alarms: notifications a browser gets at once, then one every interval; Disaster apart. Chapter 13.5. |
+| `web.push_rate` | 50 | 10–200 | Notifications a second the web client sends to each push service, all browsers together; Disaster and High go first. Chapter 13.5. |
+| `web.enabled`, `web.url`, `web.password_login`, `web.zabbix_link`, `web.minimal_notifications`, `devices.max_web`, `web.require_bound`, `web.unbound_grace`, `web.session_idle`, `web.repeat_interval` | off, empty, off, off, off, 1, on, 7 days, 30 days, 10 min | | The web client: chapter 13.5. |
 
 Suggestions:
 

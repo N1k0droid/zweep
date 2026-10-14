@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96">
+  <!-- Small symbol of a notification (Android shows it as a white shape): the status bar icon of the Zweep app -->
+  <path d="M1.80,12.00 a10.2,10.2 0 1,0 20.40,0 a10.2,10.2 0 1,0 -20.40,0 Z" stroke="#fff" stroke-width="1.6" fill="none"/>
+  <path d="M5.40,12.00 a6.6,6.6 0 1,0 13.20,0 a6.6,6.6 0 1,0 -13.20,0 Z M9.20,8.70 L14.80,8.70 L14.80,10.05 L11.19,13.95 L14.80,13.95 L14.80,15.30 L9.20,15.30 L9.20,13.95 L12.81,10.05 L9.20,10.05 Z" fill="#fff" fill-rule="evenodd"/>
+  <path d="M15.89,5.62 a1.1,1.1 0 1,0 2.20,0 a1.1,1.1 0 1,0 -2.20,0 Z" fill="#fff"/>
+</svg>

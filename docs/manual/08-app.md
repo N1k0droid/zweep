@@ -104,6 +104,7 @@ never notified.
 - In the top bar: the **filter of the sources** (shown when the problems come from more than one
   Zabbix: untick the ones to hide; all are shown by default), **refresh**, and the **search** icon,
   which opens the search by host, problem, host group.
+- **Pull down** at the top of the list, here and in Alerts, to ask the servers again.
 
 <p align="center"><img src="../assets/screenshots/app-problems.png" alt="The Problems tab" width="300"></p>
 
@@ -123,18 +124,35 @@ received, with one warning line per server under the filters: *Zweep Roma not re
 screen. When the connection comes back, the server sends only what changed meanwhile.
 - If Zabbix cannot be reached, the list stays visible with *Data not updated for: …*.
 
-**Acknowledge** (if allowed): open a problem, **Acknowledge**, write a message (required), send. The state
-goes from *Waiting for the connection* (offline: it is sent as soon as possible) to *Sent, waiting for
-Zabbix*, to **✓ Acknowledged in Zabbix**. In Zabbix the acknowledgement appears as made by the Zweep
-service user, with your username in the first line (`Zweep User: mario.rossi`) and your message below.
+**The detail of a problem.** Under the data of the problem:
 
-💡 Acknowledging usually **stops the escalation** in Zabbix (if the action uses the condition *Event is
-not acknowledged*): acknowledge when you take charge of the problem, so that nobody else is called.
+- **Actions**, each asking for confirmation first: **Open in Zabbix ↗** (when the administrator set the
+  address of the frontend), **Silence** / **Unmute** for this alarm on this phone, and **Force close**
+  (if allowed, below).
+- **History**: the updates of the problem in Zabbix, oldest first. The one that carried the
+  acknowledgement has the label *ACKNOWLEDGED* on the right.
+- **Update problem** (if allowed), with the words of Zabbix: write a **Message** (required), then
+  - **Update** adds the message to the problem **without acknowledging it** (it needs a server of
+    version 1.1 or later; with an older one only Acknowledge is offered);
+  - **Acknowledge** acknowledges the problem with that message.
 
-**Force close** (if allowed): in the detail of an alert that stayed open by mistake (the recovery never
-arrived) — it closes it **for every operator** and does not change Zabbix. The app warns if Zabbix still
-shows the problem as open. If Zabbix later sends news about the problem (acknowledge, comment, severity
-change), the alert opens again on its own.
+  Both ask before sending. Zabbix keeps **one acknowledgement per problem**: on a problem already
+  acknowledged an Acknowledge adds its message, and the app says so. The state goes from *Waiting for
+  the connection* to *Sent, waiting for Zabbix*, to **✓ Acknowledged in Zabbix** (or **✓ Message added
+  in Zabbix**). In Zabbix it appears as made by the Zweep service user, with your username in the
+  first line (`Zweep User: mario.rossi`) and your message below.
+
+  The box is offered only **with the data of Zabbix on screen**: without them nobody knows what a
+  colleague did in the meantime. When the data are older than two minutes the detail says so (*Zabbix
+  does not answer: data as of 15:42*), and so does the confirmation.
+
+💡 Whether an acknowledgement stops the escalation depends on the action in Zabbix (the condition
+*Event is not acknowledged*, chapter 6): acknowledge when you take charge of the problem.
+
+**Force close** (if allowed): among the **Actions** of the detail of an alert that stayed open by
+mistake (the recovery never arrived) — it closes it **for every operator** and does not change Zabbix.
+The app warns if Zabbix still shows the problem as open, and asks twice. If Zabbix later sends news
+about the problem (acknowledge, comment, severity change), the alert opens again on its own.
 
 ## 8.6 Channels: sounds and reminders
 
@@ -148,8 +166,19 @@ you. For each channel:
 | Interval | every 1, 2, 5, 10, 15 min | 2 min |
 | Sound | any sound of the phone, via the Android settings of the channel (**Sound**) | the Zweep sound of the severity: from a 1-second triple burst (Disaster) down to a short low blip (Not classified); custom channels: one Zweep sound for all, two notes ringing together like a tapped glass |
 
+| Vibration | **Zweep**, **Phone default**, **Off**, **Custom…** | Zweep on a new installation; channels that already existed keep the vibration they had |
+
 **Resolved**: below the channels of each server, the sound of the recoveries — three soft rising
-notes — with **Sound** and **Restore Zweep sound** like the other channels.
+notes — with **Sound**, **Vibration** and **Restore Zweep sound** like the other channels.
+
+**Vibration.** The *Zweep* vibration of a channel beats the rhythm of its sound — three bursts for
+Disaster, a double beat twice for High, two short beats and a long one for Average, and so on — so
+that a phone set to vibrate tells the severity by itself. *Phone default* is the vibration of the
+phone, *Off* none. With **Custom…** you tap the rhythm yourself in a box: how long you hold each tap
+and the pauses are recorded (at most 3 seconds and 10 taps); **Try** lets you feel it before saving.
+Android cannot change the vibration of an existing channel, so the app asks first and then creates
+the channel again, keeping its sound, importance and lights. Sound and vibration are started by
+Android together, not to the millisecond; a phone maker may also impose its own vibration.
 
 The Zweep sounds are original works made for Zweep, under the same license.
 Phones updated from a version without them get the new sounds only on the channels that still used the
@@ -158,8 +187,8 @@ system sound (custom channels too, since 1.0.1): a sound chosen by the user is k
 In the Android settings of a channel, *Default* means the system notification sound, not the Zweep
 sound (Android does not list the sounds of an app). To get the Zweep sound back, use **Restore Zweep
 sound** under the channel: it appears only when the channel plays another sound. Android cannot change
-the sound of an existing channel, so the channel is created again and its other settings set by hand
-(vibration, Do Not Disturb exception) go back to the defaults.
+the sound of an existing channel, so the channel is created again and its other settings (the
+vibration, which goes back to *Zweep*, and the Do Not Disturb exception) go back to the defaults.
 
 Reminders repeat the notification of an **unread, unresolved** alarm until you open it, mark it read, or
 the problem is resolved; opening the alarm stops them.

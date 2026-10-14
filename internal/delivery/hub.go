@@ -133,16 +133,30 @@ type inFrame struct {
 	ProjRev    *int64            `json:"proj_rev,omitempty"`
 	// ProjResolved: the app keeps resolved problems in its list ("Recent" view): deltas carry them
 	ProjResolved bool `json:"proj_resolved,omitempty"`
+	// IP: frame "client" of the web client plugin, the address of the browser it serves
+	IP string `json:"ip,omitempty"`
+	// Seen: frame "client", when the browser last opened the page (unix seconds)
+	Seen int64 `json:"seen,omitempty"`
+	// Bound: frame "client", whether the session of the browser is bound to a key it holds
+	Bound *bool `json:"bound,omitempty"`
 }
 
 type msgFrame struct {
 	Type string `json:"type"`
 	store.Message
+	// Repeat: for a web client, send the notification of this alarm again while it stays unread
+	Repeat *webRepeat `json:"repeat,omitempty"`
+}
+
+type webRepeat struct {
+	Max   int   `json:"max"`     // times
+	Every int64 `json:"every_s"` // seconds between them
 }
 
 // Notice codes sent to the app
 const (
 	NoticeTokenRevoked  = "token_revoked"
+	NoticeWebDisabled   = "web_disabled" // the web client was turned off: its devices are revoked
 	NoticeTokenRotate   = "token_rotate"
 	NoticeConfigChanged = "config_changed"
 )
@@ -150,15 +164,17 @@ const (
 // ---- session ----
 
 type session struct {
-	h      *Hub
-	dev    *store.Device
-	ip     netip.Addr
-	conn   *websocket.Conn
-	out    chan []byte
-	wake   chan struct{}
-	resync chan int64
-	done   chan struct{}
-	once   sync.Once
+	h   *Hub
+	dev *store.Device
+	ip  netip.Addr
+	// trustClient: a web device served by the declared plugin, whose "client" frames are believed
+	trustClient bool
+	conn        *websocket.Conn
+	out         chan []byte
+	wake        chan struct{}
+	resync      chan int64
+	done        chan struct{}
+	once        sync.Once
 
 	lastIn   atomic.Int64 // unix nanoseconds of the last frame, ping or pong from the client
 	ackedSeq int64        // position recorded for this session (reader goroutine only)
@@ -272,7 +288,9 @@ func (h *Hub) Connected(deviceID store.UUID) bool {
 }
 
 // Serve runs a device session until the connection ends. The device is already authenticated.
-func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev *store.Device, ip netip.Addr) {
+// trustClient: the peer is the web client plugin the administrator declared, so the address of the
+// browser it reports is believed.
+func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev *store.Device, ip netip.Addr, trustClient bool) {
 	s := &session{
 		h: h, dev: dev, ip: ip, conn: conn,
 		out: make(chan []byte, 256), wake: make(chan struct{}, 1), resync: make(chan int64, 8), done: make(chan struct{}),
@@ -315,6 +333,17 @@ func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev *store.Device
 	if prev == store.DeviceUnreachable {
 		h.audit(ctx, s, "device.reachable", nil)
 	}
+	// A device that moves between networks reconnects all day: the audit keeps one row for every
+	// address it uses, not one for every reconnection
+	// (a web client behind a trusted plugin is recorded when the plugin tells the address of its browser)
+	s.trustClient = trustClient && dev.Platform == store.PlatformWeb
+	if !s.trustClient {
+		if changed, err := h.st.ConnectedFrom(ctx, dev.ID, ip, false); err != nil {
+			metrics.DBErrors.Inc()
+		} else if changed {
+			h.audit(ctx, s, "device.connected", map[string]any{"name": dev.Name, "platform": dev.Platform})
+		}
+	}
 	info := hello.Device
 	if info == nil {
 		info = &store.DeviceInfo{}
@@ -332,7 +361,7 @@ func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev *store.Device
 	if start < 0 {
 		start = dev.AckedSeq
 	}
-	lat, err := h.st.SetAckedSeq(ctx, dev.ID, dev.UserID, start)
+	lat, err := h.st.SetAckedSeq(ctx, dev.ID, dev.UserID, start, dev.Platform == store.PlatformWeb)
 	if err != nil {
 		metrics.DBErrors.Inc()
 		return
@@ -350,7 +379,7 @@ func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev *store.Device
 		metrics.DBErrors.Inc()
 		return
 	}
-	features := []string{"receipts", "cumulative"}
+	features := []string{"receipts", "cumulative", "ack_message"} // ack_message: a message without acknowledging
 	if sources, err := APISources(ctx, h.st); err == nil && len(sources) > 0 {
 		features = append(features, "problems", "problem_views") // problem_views: Recent and History
 	}
@@ -477,6 +506,25 @@ func (s *session) reader(ctx context.Context) {
 					metrics.DBErrors.Inc()
 				}
 			}
+		case "client":
+			if s.dev.Platform == store.PlatformWeb && f.Bound != nil {
+				if err := h.st.BrowserBound(ctx, s.dev.ID, *f.Bound); err != nil {
+					metrics.DBErrors.Inc()
+				}
+			}
+			// The web client plugin: when the browser of this device last opened the page, and from where
+			if now := time.Now(); s.dev.Platform == store.PlatformWeb && f.Seen > 0 && f.Seen <= now.Add(time.Minute).Unix() {
+				if err := h.st.BrowserSeen(ctx, s.dev.ID, time.Unix(f.Seen, 0)); err != nil {
+					metrics.DBErrors.Inc()
+				}
+			}
+			if addr, err := netip.ParseAddr(f.IP); err == nil && s.trustClient {
+				if changed, err := h.st.ConnectedFrom(ctx, s.dev.ID, addr.Unmap(), true); err != nil {
+					metrics.DBErrors.Inc()
+				} else if changed {
+					h.auditFrom(ctx, s, addr.Unmap(), "device.connected", map[string]any{"name": s.dev.Name, "platform": s.dev.Platform})
+				}
+			}
 		case "bye":
 			if s.dev.HasScope(store.ScopeStatus) && f.Reason == "user_quit" {
 				s.mu.Lock()
@@ -492,7 +540,12 @@ func (s *session) reader(ctx context.Context) {
 
 func (h *Hub) handleAck(ctx context.Context, s *session, f inFrame) {
 	// A plain "delivered" covered by the cumulative position needs no per-message write
-	covered := f.State == store.DeliveryDelivered && f.AckedSeq != nil && f.Seq > 0 && f.Seq <= *f.AckedSeq
+	web := s.dev.Platform == store.PlatformWeb
+	if f.State == store.DeliveryRelayed && !web {
+		return // only the web client plugin relays
+	}
+	// For a web device the position closes deliveries as relayed: a real receipt is always written
+	covered := !web && f.State == store.DeliveryDelivered && f.AckedSeq != nil && f.Seq > 0 && f.Seq <= *f.AckedSeq
 	if covered {
 		metrics.Receipts.WithLabelValues(f.State).Inc()
 	}
@@ -514,7 +567,7 @@ func (h *Hub) handleAck(ctx context.Context, s *session, f inFrame) {
 	// duplicates must not turn into database writes (under load that would slow the reader down)
 	if f.AckedSeq != nil && *f.AckedSeq > s.ackedSeq {
 		s.ackedSeq = *f.AckedSeq
-		lat, err := h.st.SetAckedSeq(ctx, s.dev.ID, s.dev.UserID, *f.AckedSeq)
+		lat, err := h.st.SetAckedSeq(ctx, s.dev.ID, s.dev.UserID, *f.AckedSeq, web)
 		if err != nil {
 			metrics.DBErrors.Inc()
 			return
@@ -566,7 +619,28 @@ func (s *session) pump(ctx context.Context) {
 }
 
 func (h *Hub) sendMessage(ctx context.Context, s *session, m store.Message, retryIn time.Duration) bool {
-	if !s.send(msgFrame{Type: "msg", Message: m}) {
+	frame := msgFrame{Type: "msg", Message: m}
+	if s.dev.Platform == store.PlatformWeb && m.Kind == "problem" {
+		// A web client cannot insist by itself as the app does: the plugin does it, for the channels
+		// the administrator chose (the highest count among the channels of the alarm)
+		if reps, err := h.st.WebRepeats(ctx); err != nil {
+			metrics.DBErrors.Inc()
+		} else {
+			var most store.WebRepeat
+			for _, c := range m.Channels {
+				if reps[c].Repeats > most.Repeats {
+					most = reps[c]
+				}
+			}
+			if most.Repeats > 0 {
+				if most.EveryS == 0 {
+					most.EveryS = int64(h.Settings().WebRepeatEvery.Seconds())
+				}
+				frame.Repeat = &webRepeat{Max: most.Repeats, Every: most.EveryS}
+			}
+		}
+	}
+	if !s.send(frame) {
 		return false
 	}
 	metrics.MessagesSent.Inc()
@@ -593,7 +667,10 @@ func (h *Hub) touch(ctx context.Context, s *session) {
 }
 
 func (h *Hub) audit(ctx context.Context, s *session, action string, details map[string]any) {
-	ip := s.ip
+	h.auditFrom(ctx, s, s.ip, action, details)
+}
+
+func (h *Hub) auditFrom(ctx context.Context, s *session, ip netip.Addr, action string, details map[string]any) {
 	if err := h.st.Audit(ctx, store.AuditEntry{
 		ActorType: store.ActorDevice, Actor: s.dev.ID.String(), Action: action, Target: s.dev.Username, IP: &ip, Details: details,
 	}); err != nil {

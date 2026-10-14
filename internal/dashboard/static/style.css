@@ -48,6 +48,7 @@ main.narrow { max-width: 440px; padding-top: 56px; }
 footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .head h1, .head h2 { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .back { display: inline-block; margin-bottom: 14px; }
 
 /* ---- boxes: same space on every side, no trailing margins ---- */
@@ -140,7 +141,11 @@ form.filters .actions { margin: 0; }
 
 /* ---- badges: fixed height, text centered ---- */
 .pill, .sev, .chan, .tag, .chip { display: inline-flex; align-items: center; line-height: 1; white-space: nowrap; vertical-align: middle; }
-.pill { height: 22px; padding: 0 9px; font-size: 12px; font-weight: 700; border-radius: 11px; border: 1px solid; }
+/* The text of the interface font sits low in its line: two pixels under it put it in the middle of the outline */
+.pill { height: 22px; padding: 0 9px 2px; justify-content: center; font-size: 12px; font-weight: 700; border-radius: 11px; border: 1px solid; }
+/* A state column: the word alone, in its colour, in the middle of the column */
+th.st, td.st { text-align: center; }
+td.st .pill { display: inline; height: auto; padding: 0; border: 0; border-radius: 0; font-size: 13px; line-height: inherit; vertical-align: baseline; }
 .pill.ok { color: var(--ok); border-color: #166534; }
 .pill.warn { color: var(--warn); border-color: #854d0e; }
 .pill.err { color: var(--err); border-color: #7f1d1d; }
@@ -164,7 +169,7 @@ form.filters .actions { margin: 0; }
 .chan.s8B5CF6 { background: #8B5CF6; color: #fff; }
 .chan.sA855F7 { background: #A855F7; color: #fff; }
 .chan.sEC4899 { background: #EC4899; color: #0f172a; }
-.tag { height: 20px; padding: 0 7px; font-size: 12px; background: var(--outline); border-radius: 3px; margin: 1px 2px 1px 0; }
+.tag { height: 20px; padding: 0 7px 1px; font-size: 12px; background: var(--outline); border-radius: 3px; margin: 1px 2px 1px 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
 .chip { height: 30px; padding: 0 12px; gap: 6px; border: 1px solid var(--outline-strong); border-radius: var(--r-control); color: var(--body); font-size: 13px; }
 .chip b { color: var(--text); }
@@ -217,10 +222,20 @@ form.filters .filter-group { flex-basis: 100%; }
 form.filters label.check { flex-direction: row; align-items: center; }
 table + p, table + .pager { margin-top: 10px; }
 form.filters input[type=checkbox] { min-width: 0; width: 16px; }
-/* Settings: value, unit and button on one line */
+/* Settings: value and button on one line; every value has the same width, so the buttons line up */
 form.inline { display: flex; align-items: center; gap: 8px; margin: 0; }
-form.inline input, form.inline select { width: 110px; margin: 0; }
+form.inline input, form.inline select, form.inline .unitbox { width: 150px; margin: 0; }
 form.inline .muted { min-width: 52px; }
+/* A number with its unit: the unit is written inside the field, at the right, faded: the fields of a
+   column are all alike whether they have a unit or not */
+.unitbox { position: relative; display: inline-flex; flex: none; }
+.unitbox .u { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); opacity: .65;
+  font-size: 13px; line-height: 1; pointer-events: none; }
+.unitbox input, form.inline .unitbox input, td .unitbox input.num { width: 100%; margin: 0; }
+.unitbox .u + input { padding-right: 70px; }
+/* no arrows of the browser over the unit */
+.unitbox input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.unitbox input[type=number]::-webkit-outer-spin-button, .unitbox input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* Header buttons: language, account and sign out look the same */
 .hbtn { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 12px; font: inherit; font-size: 13px;
@@ -381,3 +396,26 @@ td.ver { overflow-wrap: anywhere; min-width: 90px; }
 .danger-op { align-items: center; }
 .danger-op > label { margin: 0; align-self: end; }
 .danger-op > button { align-self: end; height: var(--control-h); font-size: 14px; }
+
+/* A page in sections: the menu on the left, one section at a time on the right (Settings) */
+.sidecols { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.sidemenu { display: flex; flex-direction: column; gap: 2px; }
+.sidemenu a { padding: 8px 12px; color: var(--muted); text-decoration: none; font-weight: 600; border-left: 2px solid transparent; border-radius: 0 var(--r-control) var(--r-control) 0; }
+.sidemenu a:hover { color: var(--text); }
+.sidemenu a.on { color: var(--text); border-left-color: var(--accent); background: var(--surface); }
+.sidecols .card.danger-zone { margin-top: 0; }
+@media (max-width: 760px) {
+  .sidecols { grid-template-columns: 1fr; gap: 12px; }
+  .sidemenu { flex-direction: row; flex-wrap: wrap; }
+  .sidemenu a { border-left: 0; border-bottom: 2px solid transparent; border-radius: 0; }
+  .sidemenu a.on { border-bottom-color: var(--accent); background: transparent; }
+}
+
+/* A number typed in a table cell keeps the width of a number */
+td input.num { width: 96px; }
+/* A value with its unit in a table cell: on one line, the fields of a column one under the other */
+td .cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+td .cell input { width: 140px; margin: 0; }
+td .cell .unitbox { width: 140px; }
+td .cell .unitbox input { width: 100%; }
+.actions.below-table { margin-top: 14px; }

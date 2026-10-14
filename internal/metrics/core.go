@@ -92,6 +92,10 @@ var (
 	Devices = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "zweep_devices", Help: "Devices by state",
 	}, []string{"state"})
+	// WebDevices has no series while the web client is off: nothing of it shows on the endpoint
+	WebDevices = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "zweep_web_devices", Help: "Devices of the web client plugin by state (only while the web client is on)",
+	}, []string{"state"})
 	UsersWithOnlineDevice = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "zweep_users_with_online_device", Help: "Users with at least one online device",
 	})
@@ -178,7 +182,7 @@ func collectors() []prometheus.Collector {
 		WebhookRequests, WebhookCollisions, WebhookDuplicateSource, WebhookUnknownSource, WebhookIPRejected, WebhookOutsideFilter, ChannelOverlap,
 		IngestDuration, IngestLastSuccess,
 		MessagesSent, Retries, Receipts, CumulativeReceipts, Gaps, Resyncs, UnconfirmedTotal, DeliveryLatency,
-		OutboxPending, Unconfirmed, OldestPendingAge, Devices, UsersWithOnlineDevice,
+		OutboxPending, Unconfirmed, OldestPendingAge, Devices, WebDevices, UsersWithOnlineDevice,
 		WSConnections, WSConnects, WSDisconnects, MessagesStored, OldestMessageAge,
 		RecoveryWindow, RetentionLastRun, RetentionDeleted, AuthFailures, DBErrors,
 		ZbxPollLastSuccess, ZbxPollDuration, ZbxAPIErrors, ProjectionProblems, ProjectionStale, ZbxVersionInfo, ZbxTokenExpiry,

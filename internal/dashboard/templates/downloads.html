@@ -36,6 +36,10 @@
     <li>{{.T "dl.template_step3"}}</li>
   </ol>
   <div class="actions"><a class="button primary" href="/admin/downloads/template_zweep.yaml" download>template_zweep.yaml</a></div>
+  {{if index .Data "Web"}}
+  <p class="muted small">{{.T "dl.template_web_hint"}}</p>
+  <div class="actions"><a class="button" href="/admin/downloads/template_zweep_web.yaml" download>template_zweep_web.yaml</a></div>
+  {{end}}
 </section>
 <section class="card" id="app">
   <h2>{{.T "apk.title"}}</h2>

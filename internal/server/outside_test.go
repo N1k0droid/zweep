@@ -53,13 +53,13 @@ func TestOutside_ListAndDangerZone(t *testing.T) {
 	require.Contains(t, pg.body, "web-01")
 	require.NotContains(t, pg.body, "web-02")
 	require.Contains(t, b.get("/admin/deliveries").body, `class="pager"`) // the pager after the rows renders
-	pg = b.get("/admin/settings")
+	pg = b.get("/admin/settings?s=danger")
 	require.NotContains(t, pg.body, "/admin/danger/") // not for managers
 	require.Equal(t, 403, b.post("/admin/danger/seen_outside", url.Values{"csrf": {pg.csrf(t)}, "confirm": {"OUTSIDE"}}).code)
 
 	a := newBrowser(t, adm, "198.51.100.131")
 	a.login("admin", "admin-pass")
-	pg = a.get("/admin/settings")
+	pg = a.get("/admin/settings?s=danger")
 	require.Contains(t, pg.body, "/admin/danger/seen_outside")
 	csrf := pg.csrf(t)
 	// Wrong word: nothing happens

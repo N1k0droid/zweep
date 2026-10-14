@@ -273,7 +273,7 @@ func (s *Service) handleProblemDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"problem": row, "history": projection.History(row.Acknowledges, src.APIUserID), "data_as_of": dataAsOf,
-		"frontend_url": frontendEventURL(src, row),
+		"frontend_url": s.frontendFor(dev, frontendEventURL(src, row)),
 	})
 }
 
@@ -311,6 +311,15 @@ func (s *Service) fetchEvent(r *http.Request, src *store.Source, eventID int64, 
 	return &row, nil
 }
 
+// frontendFor: a web client runs in a browser reachable from the Internet, so it gets an address of
+// the Zabbix frontend only when the administrator allowed it (web.zabbix_link); the app always does
+func (s *Service) frontendFor(dev *store.Device, url string) string {
+	if dev.Platform == store.PlatformWeb && !s.hub.Settings().WebZabbixLink {
+		return ""
+	}
+	return url
+}
+
 func frontendEventURL(src *store.Source, p *store.ProblemRow) string {
 	if src.FrontendURL == "" || p == nil || p.ObjectID == 0 {
 		return ""
@@ -323,6 +332,9 @@ type ackRequestJSON struct {
 	Source    string          `json:"source"`
 	EventID   json.RawMessage `json:"eventid"`
 	Text      string          `json:"text"`
+	// Action: "ack" (default) acknowledges with the message; "message" only adds the message, and the
+	// problem stays unacknowledged
+	Action string `json:"action,omitempty"`
 }
 
 // handleAckCreate queues an acknowledgement with message (docs 05 §5.5)
@@ -337,6 +349,16 @@ func (s *Service) handleAckCreate(w http.ResponseWriter, r *http.Request) {
 	reqID, err := store.ParseUUID(in.RequestID)
 	if err != nil {
 		writeError(w, errorf(http.StatusBadRequest, 40040, "invalid_request_id", "request_id must be a UUID"))
+		return
+	}
+	mask := ack.ActionAckAndMsg
+	switch in.Action {
+	case "", "ack":
+		in.Action = "ack"
+	case "message":
+		mask = zbxapi.ActionMessage
+	default:
+		writeError(w, errorf(http.StatusBadRequest, 40044, "invalid_action", "action is ack or message"))
 		return
 	}
 	eventID, err := strconv.ParseInt(strings.Trim(string(in.EventID), `"`), 10, 64)
@@ -392,7 +414,7 @@ func (s *Service) handleAckCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	a, created, err := s.st.CreateAck(ctx, store.AckRequest{
 		DeviceID: dev.ID, RequestID: reqID, UserID: dev.UserID, Username: dev.Username, Source: src.ID, EventID: eventID,
-		Text: text, Composed: composed, ActionMask: ack.ActionAckAndMsg,
+		Text: text, Composed: composed, ActionMask: mask,
 	})
 	if err != nil {
 		storeError(w, err)
@@ -404,7 +426,7 @@ func (s *Service) handleAckCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics.AckRequests.WithLabelValues("accepted").Inc()
 	s.audit(ctx, store.AuditEntry{ActorType: store.ActorUser, Actor: dev.Username, Action: "ack.accepted", Target: fmt.Sprintf("%s:%d", src.ID, eventID),
-		IP: ipPtr(requestInfo(r).IP), Details: map[string]any{"text": text, "device_id": dev.ID.String(), "request_id": reqID.String()}})
+		IP: ipPtr(requestInfo(r).IP), Details: map[string]any{"text": text, "action": in.Action, "device_id": dev.ID.String(), "request_id": reqID.String()}})
 	s.acks.Wake()
 	writeJSON(w, http.StatusAccepted, a)
 }

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Copyright 2026 N1k0droid
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Writes zabbix/template_zweep.yaml, the Zabbix template that monitors a Zweep server (manual 10.1).
+"""Writes zabbix/template_zweep.yaml, the Zabbix template that monitors a Zweep server (manual 10.1),
+and zabbix/template_zweep_web.yaml, the optional one for the web client plugin (manual 13.9).
 
 Usage: python tools/zbxtemplate/build.py   (from the repository root; no dependencies)
 The UUIDs are derived from the item keys, so a new run changes only what was edited here.
@@ -12,6 +13,10 @@ import os
 T = 'Zweep by HTTP'
 GROUP = 'Templates/Applications'
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'zabbix', 'template_zweep.yaml')
+# The web client plugin: a template of its own, linked only where the web client is used. Its item
+# keys differ from those of the main template, so that both can be linked to the same host.
+TW = 'Zweep Web by HTTP'
+OUT_WEB = os.path.join(os.path.dirname(__file__), '..', '..', 'zabbix', 'template_zweep_web.yaml')
 
 
 def uid(key):
@@ -39,8 +44,8 @@ class Y:
         return '\n'.join(self.lines) + '\n'
 
 
-def expr(e):
-    return e.replace('/T/', '/' + T + '/')
+def expr(e, template=T):
+    return e.replace('/T/', '/' + template + '/')
 
 
 # --- items read from /metrics -------------------------------------------------------------------
@@ -149,15 +154,44 @@ MACROS = [
     ('{$ZWEEP.BACKUP.AGE.MAX}', '36h', ''),
 ]
 
+# --- the web client plugin ------------------------------------------------------------------------
+# The web devices exist on the metrics endpoint of the server only while the web client is on: -1 when off
+MW = [
+    ('zweep.web.devices.online', 'Web clients connected', 'zweep_web_devices{state="online"}', 'value', '',
+     'Web clients whose plugin holds their connection to Zweep. -1 while the web client is turned off in Zweep.', 'optional'),
+    ('zweep.web.devices.offline', 'Web clients disconnected', 'zweep_web_devices{state="offline"}', 'value', '', '', 'optional'),
+    ('zweep.web.devices.unreachable', 'Web clients unreachable', 'zweep_web_devices{state="unreachable"}', 'value', '',
+     'Web clients without contact for longer than the heartbeat threshold: the plugin does not hold their connection.', 'optional'),
+]
+
+TRW = [
+    ('Zweep Web: plugin not answering', 'HIGH',
+     'last(/T/zweep.web.health)<>204 and last(/T/zweep.web.health,#2)<>204',
+     'GET {$ZWEEP.WEB.URL}/healthz does not answer 204: the web client plugin is down or stalled. The browsers open no page and receive no notifications; the app is not affected.'),
+    ('Zweep Web: plugin not reachable', 'HIGH', 'nodata(/T/zweep.web.health,3m)=1',
+     'No answer from {$ZWEEP.WEB.URL}/healthz for 3 minutes (plugin down, network, reverse proxy).'),
+    ('Zweep Web: no web client connected', 'WARNING',
+     'max(/T/zweep.web.devices.online,10m)=0 and min(/T/zweep.web.devices.unreachable,10m)>0',
+     'There are web clients and none is connected: the plugin does not reach Zweep (address, allow-list of the plugin, Zweep down).'),
+    ('Zweep Web: the web client is turned off', 'INFO', 'max(/T/zweep.web.devices.online,10m)<0',
+     'Zweep exports nothing about web clients: the web client is turned off in the settings, or the metrics listener is not reachable.'),
+]
+
+MACROS_WEB = [
+    ('{$ZWEEP.WEB.URL}', 'https://web.example.com', 'Public URL of the web client plugin, without path'),
+    ('{$ZWEEP.METRICS.URL}', 'http://zweep.example.com:9464', 'URL of the metrics listener of the Zweep server (ZWEEP_METRICS_LISTEN_HTTP), without path'),
+    ('{$ZWEEP.METRICS.TOKEN}', '', 'Bearer token of the metrics listener; empty when only the allow-list protects it'),
+]
+
 # -1: never happened (the metric is 0)
 AGE_JS = 'var t = parseFloat(value);\nif (!(t > 0)) { return -1; }\nreturn Math.max(0, Math.round(Date.now() / 1000 - t));'
 
 
-def write_triggers(y, ind, triggers, word='triggers'):
+def write_triggers(y, ind, triggers, word='triggers', template=T):
     y.add(ind, word + ':')
     for name, sev, e, desc in triggers:
         y.add(ind + 1, '- uuid: ' + uid('trigger:' + name))
-        y.add(ind + 2, 'expression: ' + q(expr(e)))
+        y.add(ind + 2, 'expression: ' + q(expr(e, template)))
         y.add(ind + 2, 'name: ' + q(name))
         y.add(ind + 2, 'priority: ' + sev)
         if desc:
@@ -167,7 +201,7 @@ def write_triggers(y, ind, triggers, word='triggers'):
         y.add(ind + 4, 'value: ' + ('notice' if sev == 'INFO' else 'availability'))
 
 
-def write_metric(y, ind, item, proto=False):
+def write_metric(y, ind, item, proto=False, master='zweep.metrics'):
     key, name, pattern, kind, units, desc, opts = item
     opts = set(filter(None, opts.split(',')))
     y.add(ind, '- uuid: ' + uid('item:' + key))
@@ -219,10 +253,87 @@ def write_metric(y, ind, item, proto=False):
         y.add(ind + 3, 'error_handler: CUSTOM_VALUE')
         y.add(ind + 3, "error_handler_params: '0'")
     y.add(ind + 1, 'master_item:')
-    y.add(ind + 2, 'key: zweep.metrics')
+    y.add(ind + 2, 'key: ' + master)
     y.add(ind + 1, 'tags:')
     y.add(ind + 2, '- tag: component')
     y.add(ind + 3, 'value: ' + ('source' if proto else key.split('.')[1]))
+
+
+def http_item(y, key, name, desc, url, headers=False, raw=False):
+    """An item read over HTTP: the status code of the answer, or (raw) its body, kept only for the dependent items"""
+    y.add(4, '- uuid: ' + uid('item:' + key))
+    y.add(5, 'name: ' + q(name))
+    y.add(5, 'type: HTTP_AGENT')
+    y.add(5, 'key: ' + key)
+    y.add(5, 'delay: 1m')
+    if raw:
+        y.add(5, "history: '0'")
+        y.add(5, 'value_type: TEXT')
+        y.add(5, "trends: '0'")
+    y.add(5, 'description: ' + q(desc))
+    if not raw:
+        y.add(5, 'preprocessing:')
+        y.add(6, '- type: REGEX')
+        y.add(7, 'parameters:')
+        y.add(8, "- '^HTTP/\\S+\\s+(\\d+)'")
+        y.add(8, "- \\1")
+    y.add(5, 'timeout: 5s')
+    y.add(5, 'url: ' + q(url))
+    if headers:
+        y.add(5, 'headers:')
+        y.add(6, '- name: Authorization')
+        y.add(7, "value: 'Bearer {$ZWEEP.METRICS.TOKEN}'")
+    if not raw:
+        y.add(5, "status_codes: ''")
+        y.add(5, 'retrieve_mode: HEADERS')
+    y.add(5, 'tags:')
+    y.add(6, '- tag: component')
+    y.add(7, 'value: ' + ('raw' if raw else 'health'))
+
+
+def web():
+    """The optional template of the web client plugin"""
+    y = Y()
+    y.add(0, 'zabbix_export:')
+    y.add(1, "version: '7.0'")
+    y.add(1, 'template_groups:')
+    y.add(2, '- uuid: ' + uid('group:' + GROUP))
+    y.add(3, 'name: ' + GROUP)
+    y.add(1, 'templates:')
+    y.add(2, '- uuid: ' + uid('template:web'))
+    y.add(3, 'template: ' + q(TW))
+    y.add(3, 'name: ' + q(TW))
+    y.add(3, 'description: ' + q(
+        'Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, and the web clients as the '
+        'Zweep server sees them (manual, chapters 10.1 and 13.9). Optional: link it only where the web client is used.\n'
+        'Set the macros {$ZWEEP.WEB.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an '
+        'action that does NOT use the Zweep media type.'))
+    y.add(3, 'groups:')
+    y.add(4, '- name: ' + GROUP)
+    y.add(3, 'items:')
+    http_item(y, 'zweep.web.health', 'Web client plugin: HTTP status',
+              'Status code of GET /healthz of the plugin: 204 while it runs.', '{$ZWEEP.WEB.URL}/healthz')
+    http_item(y, 'zweep.web.metrics', 'Metrics of the Zweep server',
+              'Raw Prometheus metrics of the Zweep server, source of the items about web clients; not stored.',
+              '{$ZWEEP.METRICS.URL}/metrics', headers=True, raw=True)
+    for it in MW:
+        write_metric(y, 4, it, master='zweep.web.metrics')
+    y.add(3, 'tags:')
+    y.add(4, '- tag: class')
+    y.add(5, 'value: application')
+    y.add(4, '- tag: target')
+    y.add(5, 'value: zweep-web')
+    y.add(3, 'macros:')
+    for m, v, d in MACROS_WEB:
+        y.add(4, '- macro: ' + q(m))
+        if v:
+            y.add(5, 'value: ' + q(v))
+        if d:
+            y.add(5, 'description: ' + q(d))
+    write_triggers(y, 1, TRW, template=TW)
+    with open(OUT_WEB, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(y.text())
+    print('written', os.path.normpath(OUT_WEB), len(MW) + 2, 'items,', len(TRW), 'triggers')
 
 
 def main():
@@ -326,3 +437,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    web()

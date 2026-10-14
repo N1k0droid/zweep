@@ -182,6 +182,43 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
+// Test page: a custom channel is offered in "Shown in channel" only when every recipient has it
+// (a phone without that channel would show the message without its badge and color)
+document.addEventListener("DOMContentLoaded", function () {
+  var channel = document.querySelector("select[data-channel-of-recipients]");
+  if (!channel) {
+    return;
+  }
+  var form = channel.form;
+  function value(name) {
+    var el = form.querySelector('select[name="' + name + '"]');
+    return el ? el.value : "";
+  }
+  function update() {
+    var to = value("to");
+    var users = [];
+    if (to === "user") {
+      users = [value("user")];
+    } else {
+      Array.prototype.forEach.call(form.querySelectorAll('select[name="user"] option'), function (o) { users.push(o.value); });
+    }
+    Array.prototype.forEach.call(channel.options, function (o) {
+      if (!o.hasAttribute("data-members")) {
+        return; // a severity channel: every phone has it
+      }
+      var members = o.getAttribute("data-members").split(" ");
+      var ok = to === "channel" ? o.value === value("group") : users.every(function (u) { return members.indexOf(u) >= 0; });
+      o.hidden = !ok;
+      o.disabled = !ok;
+    });
+    if (channel.selectedOptions[0] && channel.selectedOptions[0].disabled) {
+      channel.value = "sev_2";
+    }
+  }
+  Array.prototype.forEach.call(form.querySelectorAll("select[data-recipients]"), function (sel) { sel.addEventListener("change", update); });
+  update();
+});
+
 // Logging page: scroll to the newest line; live view with server-sent events
 document.addEventListener("DOMContentLoaded", function () {
   var view = document.getElementById("logview");

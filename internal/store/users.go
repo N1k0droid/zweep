@@ -59,13 +59,24 @@ type User struct {
 	TOTPLastStep      int64      `json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
+	// Enrollment rules of an operator (NULL limits follow the settings)
+	PasswordUses      int        `json:"password_uses"`
+	PasswordValidFrom *time.Time `json:"password_valid_from,omitempty"`
+	MaxPhones         *int       `json:"max_phones"`
+	MaxWeb            *int       `json:"max_web"`
+	WebEnabled        bool       `json:"web_enabled"`
+	// WebRequireBound: the web sessions of this user must be bound to a key of the browser even when
+	// the setting web.require_bound does not ask it of everyone
+	WebRequireBound bool `json:"web_require_bound"`
 }
 
-const userColumns = `id, username, COALESCE(display_name, ''), role, COALESCE(password_hash, ''), password_changed_at, disabled, totp_secret_enc, totp_last_step, created_at, updated_at`
+const userColumns = `id, username, COALESCE(display_name, ''), role, COALESCE(password_hash, ''), password_changed_at, disabled, totp_secret_enc, totp_last_step, created_at, updated_at,
+	password_uses, password_valid_from, max_phones, max_web, web_enabled, web_require_bound`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.PasswordHash, &u.PasswordChangedAt, &u.Disabled, &u.TOTPEnc, &u.TOTPLastStep, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.PasswordHash, &u.PasswordChangedAt, &u.Disabled, &u.TOTPEnc, &u.TOTPLastStep, &u.CreatedAt, &u.UpdatedAt,
+		&u.PasswordUses, &u.PasswordValidFrom, &u.MaxPhones, &u.MaxWeb, &u.WebEnabled, &u.WebRequireBound); err != nil {
 		return nil, notFound(err)
 	}
 	u.HasPassword = u.PasswordHash != ""
@@ -87,8 +98,8 @@ func (s *Store) CreateUser(ctx context.Context, u *User, by string) error {
 	}
 	err = pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO zw_user (id, username, display_name, role, password_hash, password_changed_at, updated_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			INSERT INTO zw_user (id, username, display_name, role, password_hash, password_changed_at, updated_by, password_valid_from)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $6)`,
 			u.ID, u.Username, nullable(u.DisplayName), u.Role, nullable(u.PasswordHash), changed, by); err != nil {
 			return err
 		}
@@ -271,13 +282,50 @@ func (s *Store) SetPasswordHash(ctx context.Context, username, hash, by string) 
 	}
 	var id string
 	err := s.Pool.QueryRow(ctx, `
-		UPDATE zw_user SET password_hash = $2, password_changed_at = $3, updated_at = now(), updated_by = $4
+		UPDATE zw_user SET password_hash = $2, password_changed_at = $3, updated_at = now(), updated_by = $4,
+			password_uses = 0, password_valid_from = $3
 		WHERE lower(username) = lower($1) RETURNING id`, username, nullable(hash), changed, by).Scan(&id)
 	if err != nil {
 		return notFound(err)
 	}
 	_, err = s.Pool.Exec(ctx, `DELETE FROM zw_admin_session WHERE user_id = $1`, id)
 	return err
+}
+
+// SetUserLimits changes how many devices a user may have and whether it may use the web client (nil:
+// the default of the settings). Taking the web client away revokes the web devices of the user in the
+// same transaction; their ids are returned.
+func (s *Store) SetUserLimits(ctx context.Context, username string, maxPhones, maxWeb *int, webEnabled, requireBound bool, by string) (*User, []UUID, error) {
+	var revoked []UUID
+	var out *User
+	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanUser(tx.QueryRow(ctx, `
+			UPDATE zw_user SET max_phones = $2, max_web = $3, web_enabled = $4, web_require_bound = $6, updated_at = now(), updated_by = $5
+			WHERE lower(username) = lower($1) RETURNING `+userColumns, username, maxPhones, maxWeb, webEnabled, by, requireBound))
+		if err != nil || webEnabled {
+			return err
+		}
+		rows, err := tx.Query(ctx, `
+			UPDATE zw_device SET revoked_at = now(), revoked_by = $2, revoke_reason = 'web client not allowed for the user'
+			WHERE user_id = $1 AND platform = 'web' AND revoked_at IS NULL RETURNING id`, out.ID, by)
+		if err != nil {
+			return err
+		}
+		revoked, err = pgx.CollectRows(rows, pgx.RowTo[UUID])
+		if err != nil || len(revoked) == 0 {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM zw_device_token WHERE device_id = ANY($1)`, revoked); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM zw_delivery WHERE device_id = ANY($1) AND state IN ('queued', 'sent', 'unconfirmed')`, revoked); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE zw_device_status SET state = $2, updated_at = now() WHERE device_id = ANY($1)`, revoked, DeviceRevoked)
+		return err
+	})
+	return out, revoked, err
 }
 
 // DeleteUser removes a user; devices, deliveries and messages go with it (ON DELETE CASCADE).

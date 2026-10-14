@@ -62,6 +62,9 @@ database latency adds directly to the time Zabbix waits for `200 sent`.
 | Prometheus | Zweep metrics port | your choice | metrics (optional) |
 | Let's Encrypt (Internet) | Zweep port 80 or 443 | 80/443 | only for http-01 / tls-alpn-01 challenges |
 | Zweep | DNS provider API, ACME CA | 443 | only for ACME certificates |
+| Browsers (Zweep Web) | public HTTPS address of the plugin | 443 | only with the optional web client (chapter 13.3) |
+| Zweep Web plugin | Zweep public port | 8080 (or 443) | only with the optional web client |
+| Zweep Web plugin | push services (Internet) | 443 | only with the optional web client: its notifications need the internet |
 
 Notes:
 

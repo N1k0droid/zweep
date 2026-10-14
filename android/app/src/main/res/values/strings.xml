@@ -267,4 +267,38 @@
     <string name="about_author">Author</string>
     <string name="about_author_text">Zweep is designed and developed by:</string>
     <string name="about_star">Is Zweep useful to you?\nA ⭐ on GitHub and a follow help the project grow.</string>
+    <string name="detail_actions">Actions</string>
+    <string name="open_zabbix_title">Open in Zabbix</string>
+    <string name="open_zabbix_text">Open this problem in the Zabbix frontend? It opens outside Zweep and asks for your Zabbix login.</string>
+    <string name="action_open">Open</string>
+    <string name="silence_confirm">No more notifications for this alarm on this phone: no repeats, no reminders; its updates and its recovery arrive without sound. It stays in the list and you can unmute it. The other alarms are not affected.</string>
+    <string name="unsilence_confirm">Notify this alarm on this phone again?</string>
+    <string name="detail_update" translatable="false">Update problem</string>
+    <string name="action_update" translatable="false">Update</string>
+    <string name="update_need_data">To update or acknowledge the problem the data of Zabbix are needed: try again when it answers.</string>
+    <string name="detail_stale">Zabbix does not answer: data as of %1$s. Later updates, an Acknowledge by a colleague included, may not show.</string>
+    <string name="ack_confirm">Send this Acknowledge to Zabbix?</string>
+    <string name="ack_confirm_already">The problem is already acknowledged: Zabbix keeps one Acknowledge per problem, so your message is added to it. Do you want to continue?</string>
+    <string name="update_confirm">No Acknowledge: the problem stays unacknowledged. Do you want to continue?</string>
+    <string name="update_confirm_acked">Add this message to the problem?</string>
+    <string name="ack_confirmed_message">✓ Message added in Zabbix</string>
+    <string name="action_yes">Yes</string>
+    <string name="action_no">No</string>
+    <string name="channel_vibration">Vibration: %1$s</string>
+    <string name="vib_title">Vibration</string>
+    <string name="vib_zweep" translatable="false">Zweep</string>
+    <string name="vib_phone">Phone default</string>
+    <string name="vib_off">Off</string>
+    <string name="vib_custom">Custom</string>
+    <string name="vib_confirm">Android cannot change the vibration of a channel, so the channel is created again. Its sound, importance and lights are kept; other changes made by hand in the Android settings of the channel may go back to their defaults.</string>
+    <string name="vib_tap_title">Custom vibration</string>
+    <string name="vib_tap_hint">Tap the rhythm in the box: how long you hold each tap and the pauses between them are recorded (at most 3 seconds and 10 taps).</string>
+    <string name="vib_tap_here">Tap here</string>
+    <plurals name="vib_taps">
+        <item quantity="one">%1$d tap</item>
+        <item quantity="other">%1$d taps</item>
+    </plurals>
+    <string name="action_try">Try</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_save">Save</string>
 </resources>

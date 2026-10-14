@@ -2,8 +2,8 @@
 
 *Your Zabbix alert radar.*
 
-This manual describes how to install, configure, operate and use Zweep: the server, the dashboard
-and the Android app. It is written for the people who run Zabbix in a company (administrators) and
+This manual describes how to install, configure, operate and use Zweep: the server, the dashboard,
+the Android app and the optional web client for iPhone, iPad and computers. It is written for the people who run Zabbix in a company (administrators) and
 for the people who receive the alarms (operators).
 
 | Chapter | For | Content |
@@ -20,13 +20,14 @@ for the people who receive the alarms (operators).
 | [10. Operations](10-operations.md) | administrators | monitoring, logs, audit, backups, upgrades, several nodes, security checklist |
 | [11. Troubleshooting](11-troubleshooting.md) | everyone | symptoms, causes, fixes |
 | [12. Reference](12-reference.md) | administrators, integrators | command line, admin API, webhook, metrics, error codes |
+| [13. The web client](13-web-client.md) | administrators, operators | Zweep Web for iPhone, iPad and computers: what it can and cannot do, the plugin, security, activation, use |
 
 ## Conventions
 
 - `ZWEEP_…` is an environment variable of the server; every one is also a command-line flag
   (`zweep-server serve -h` lists them).
 - **Dashboard → Page → Section** is a path in the web dashboard (port 8081 by default).
-- **App → Tab → Item** is a path in the Android app.
+- **App → Tab → Item** is a path in the Android app; Zweep Web has the same screens (chapter 13).
 - Names of Zabbix menus are written in English as Zabbix shows them (for example
   *Alerts → Media types*), whatever the language of your Zabbix frontend.
 - 💡 marks a suggestion, ⚠ marks something that can cause lost or late alarms if ignored.

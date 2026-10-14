@@ -17,6 +17,7 @@ import android.provider.Settings as AndroidSettings
 import net.nicodroid.zweep.R
 import net.nicodroid.zweep.core.Rotation
 import net.nicodroid.zweep.core.Severity
+import net.nicodroid.zweep.core.Vibrations
 import net.nicodroid.zweep.core.Shown
 import net.nicodroid.zweep.data.ChannelEntity
 import net.nicodroid.zweep.data.MessageEntity
@@ -73,8 +74,16 @@ class Notifier(private val ctx: Context) {
         nm.notificationChannels.filter { it.group == group && it.id !in keep }.forEach { nm.deleteNotificationChannel(it.id) }
     }
 
-    private fun createChannel(id: String, group: String, c: ChannelEntity, sev: Int?): String {
-        val importance = when {
+    /**
+     * Creates the Android channel of a Zweep channel. A new channel vibrates with the rhythm of its
+     * Zweep sound. [keep]: the channel it takes the place of, whose sound, importance, lights and
+     * the rest go on; [vibration] and [custom] say how it vibrates.
+     */
+    private fun createChannel(
+        id: String, group: String, c: ChannelEntity, sev: Int?,
+        keep: NotificationChannel? = null, vibration: Vibration = Vibration.ZWEEP, custom: LongArray? = null,
+    ): String {
+        val importance = keep?.importance ?: when {
             c.id == RESOLVED -> NotificationManager.IMPORTANCE_DEFAULT
             sev == null -> NotificationManager.IMPORTANCE_HIGH
             sev >= Severity.HIGH -> NotificationManager.IMPORTANCE_HIGH
@@ -82,13 +91,32 @@ class Notifier(private val ctx: Context) {
         }
         val ch = NotificationChannel(id, channelName(c), importance).apply {
             this.group = group
-            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-            enableVibration(true)
-            if (sev != null) {
-                enableLights(true)
-                lightColor = severityColor(sev)
+            lockscreenVisibility = keep?.lockscreenVisibility ?: Notification.VISIBILITY_PRIVATE
+            when (vibration) {
+                Vibration.OFF -> enableVibration(false)
+                Vibration.PHONE -> enableVibration(true) // no pattern: the vibration of the phone
+                Vibration.ZWEEP -> {
+                    vibrationPattern = Vibrations.zweep(c.id)
+                    enableVibration(true)
+                }
+                Vibration.CUSTOM -> {
+                    vibrationPattern = custom ?: Vibrations.zweep(c.id)
+                    enableVibration(true)
+                }
             }
-            setSound(zweepSound(c.id), soundAttributes)
+            if (keep != null) {
+                enableLights(keep.shouldShowLights())
+                lightColor = keep.lightColor
+                setSound(keep.sound, keep.audioAttributes ?: soundAttributes)
+                setShowBadge(keep.canShowBadge())
+                setBypassDnd(keep.canBypassDnd()) // honoured only with the access to Do Not Disturb
+            } else {
+                if (sev != null) {
+                    enableLights(true)
+                    lightColor = severityColor(sev)
+                }
+                setSound(zweepSound(c.id), soundAttributes)
+            }
         }
         nm.createNotificationChannel(ch)
         return id
@@ -137,6 +165,37 @@ class Notifier(private val ctx: Context) {
         val gen = generation(serverRef, c.id)
         if (gen > 0) nm.deleteNotificationChannel(generationId(serverRef, c.id, gen))
         createChannel(generationId(serverRef, c.id, maxOf(gen, 1) + 1), "zw.$serverRef", c, sev)
+    }
+
+    /** How a channel vibrates */
+    enum class Vibration { ZWEEP, PHONE, OFF, CUSTOM }
+
+    /** How a channel vibrates now, read from its Android channel (the user may turn it off there too) */
+    fun vibrationOf(serverRef: Long, channelId: String): Vibration {
+        val ch = nm.getNotificationChannel(channelFor(serverRef, channelId)) ?: return Vibration.ZWEEP
+        val pattern = ch.vibrationPattern
+        return when {
+            !ch.shouldVibrate() -> Vibration.OFF
+            pattern == null || pattern.isEmpty() -> Vibration.PHONE
+            pattern.contentEquals(Vibrations.zweep(channelId)) -> Vibration.ZWEEP
+            else -> Vibration.CUSTOM
+        }
+    }
+
+    /** The pattern a channel vibrates with now; null: none, or the one of the phone */
+    fun vibrationPattern(serverRef: Long, channelId: String): LongArray? =
+        nm.getNotificationChannel(channelFor(serverRef, channelId))?.takeIf { it.shouldVibrate() }?.vibrationPattern?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Changes how a channel vibrates. Android cannot change the vibration of a channel, so the next
+     * generation is created; the sound, the importance, the lights and what else an app may read of
+     * the old channel go on in the new one.
+     */
+    fun setVibration(serverRef: Long, c: ChannelEntity, vibration: Vibration, custom: LongArray? = null) {
+        val gen = generation(serverRef, c.id)
+        val old = if (gen > 0) nm.getNotificationChannel(generationId(serverRef, c.id, gen)) else null
+        if (old != null) nm.deleteNotificationChannel(old.id)
+        createChannel(generationId(serverRef, c.id, maxOf(gen, 1) + 1), "zw.$serverRef", c, severityOf(c.id), old, vibration, custom)
     }
 
     /** A sound other than the system default (or no sound): chosen by the user, never overwritten */
@@ -225,7 +284,9 @@ class Notifier(private val ctx: Context) {
         val label = custom?.name ?: sevLabel
         val status = when (m.kind) {
             "recovery" -> ctx.getString(R.string.state_resolved)
-            "update" -> ctx.getString(R.string.state_updated)
+            // An acknowledgement says so, and by whom; the other updates (a comment, a severity change) do not
+            "update" -> net.nicodroid.zweep.core.ackAuthor(m.body)?.let { by -> ctx.getString(R.string.state_acked) + if (by.isEmpty()) "" else " · $by" }
+                ?: ctx.getString(R.string.state_updated)
             "test" -> ctx.getString(R.string.state_test)
             else -> ctx.getString(R.string.state_open) // problem, and a repeat of Zabbix
         }

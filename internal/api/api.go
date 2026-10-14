@@ -33,7 +33,9 @@ type Config struct {
 	ServerID    string   // persistent identity of the service (store.ServerID)
 	ServiceURLs []string // public URLs of this service, given to the app (failover order)
 	// PublicURL maps a service URL to what clients must use now (https:// once HTTPS is mandatory)
-	PublicURL          func(string) string
+	PublicURL func(string) string
+	// WebPluginIPs: where devices of platform web (the web client plugin) may call from; empty: no filter
+	WebPluginIPs       []netip.Prefix
 	SignatureTolerance time.Duration // webhook timestamp window (±5 min)
 	EnrollTTL          time.Duration // enrollment code lifetime (15 min)
 	TokenRotateGrace   time.Duration // old token validity after rotation (5 min)
@@ -87,6 +89,8 @@ func New(baseCtx context.Context, st *store.Store, hub *delivery.Hub, proj *proj
 	s.mux.HandleFunc("POST /v1/zabbix/webhook", s.handleWebhook)
 	s.mux.HandleFunc("GET /v1/stream", s.handleStream)
 	s.mux.HandleFunc("POST /v1/app/enroll", s.handleEnroll)
+	s.mux.HandleFunc("GET /v1/app/web/status", s.handleWebStatus)
+	s.mux.HandleFunc("POST /v1/app/web/event", s.device(s.handleWebEvent, ""))
 	s.mux.HandleFunc("POST /v1/app/token/rotate", s.device(s.handleRotate, ""))
 	s.mux.HandleFunc("POST /v1/app/logout", s.device(s.handleLogout, ""))
 	s.mux.HandleFunc("POST /v1/app/test", s.device(s.handleTestAlarm, store.ScopeStatus))
@@ -163,13 +167,20 @@ func errorf(httpCode, code int, machine, message string) *apiError {
 }
 
 var (
-	errBadJSON       = errorf(http.StatusBadRequest, 40024, "invalid_json", "request body must be valid JSON")
-	errUnauthorized  = errorf(http.StatusUnauthorized, 40101, "unauthorized", "")
-	errForbidden     = errorf(http.StatusForbidden, 40301, "forbidden", "")
-	errNotFound      = errorf(http.StatusNotFound, 40401, "not_found", "")
-	errTooManyAuth   = errorf(http.StatusTooManyRequests, 42909, "too_many_auth_failures", "")
-	errUnavailable   = errorf(http.StatusServiceUnavailable, 50301, "unavailable", "temporarily unavailable, retry")
-	errInternalError = errorf(http.StatusInternalServerError, 50001, "internal_error", "")
+	errBadJSON      = errorf(http.StatusBadRequest, 40024, "invalid_json", "request body must be valid JSON")
+	errUnauthorized = errorf(http.StatusUnauthorized, 40101, "unauthorized", "")
+	errForbidden    = errorf(http.StatusForbidden, 40301, "forbidden", "")
+	// errWebDisabled is the answer the web client plugin shows its users as "disabled by the administrator"
+	errWebDisabled = errorf(http.StatusForbidden, 40320, "web_disabled", "the web client is disabled on this server")
+	// Refusals of an enrollment whose credentials were right
+	errPasswordExpired = errorf(http.StatusForbidden, 40321, "password_expired", "the password has expired: ask the administrator for a new one or for an activation code")
+	errDeviceLimit     = errorf(http.StatusForbidden, 40322, "device_limit", "this user already has all the devices it may have")
+	errWebNotAllowed   = errorf(http.StatusForbidden, 40323, "web_not_allowed", "the web client is not allowed for this user")
+	errKeyRequired     = errorf(http.StatusForbidden, 40324, "key_required", "the web session must be bound to a key of the browser, and this browser gave none")
+	errNotFound        = errorf(http.StatusNotFound, 40401, "not_found", "")
+	errTooManyAuth     = errorf(http.StatusTooManyRequests, 42909, "too_many_auth_failures", "")
+	errUnavailable     = errorf(http.StatusServiceUnavailable, 50301, "unavailable", "temporarily unavailable, retry")
+	errInternalError   = errorf(http.StatusInternalServerError, 50001, "internal_error", "")
 )
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

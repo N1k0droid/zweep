@@ -28,6 +28,7 @@ func (d *Dashboard) channelRoutes() {
 	m.HandleFunc("POST "+prefix+"/channels/{id}/users", d.page(anyRole, d.channelUsers))
 	m.HandleFunc("POST "+prefix+"/channels/{id}/delete", d.page(adminOnly, d.channelDelete))
 	m.HandleFunc("POST "+prefix+"/severity/{id}", d.page(adminOnly, d.severityToggle))
+	m.HandleFunc("POST "+prefix+"/web-repeats", d.page(adminOnly, d.webRepeatsSave))
 }
 
 func channelURL(id string) string { return prefix + "/channels/" + url.PathEscape(id) }
@@ -47,7 +48,78 @@ func (d *Dashboard) channels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	slices.SortFunc(sev, func(a, b store.ChannelRow) int { return strings.Compare(b.ID, a.ID) }) // Disaster first
-	d.render(w, r, http.StatusOK, "channels", map[string]any{"Severity": sev, "Custom": custom})
+	data := map[string]any{"Severity": sev, "Custom": custom}
+	// Only while the web client is on: off, nothing of it shows
+	if st := d.Hub.Settings(); st.WebClient {
+		reps, err := d.Store.WebRepeats(r.Context())
+		if err != nil {
+			d.unavailable(w, r, err)
+			return
+		}
+		type row struct {
+			ID, Name string
+			Severity bool
+			Repeats  int
+			Minutes  int64 // 0: the general interval
+		}
+		var rows []row
+		for _, c := range append(append([]store.ChannelRow{}, sev...), custom...) {
+			rows = append(rows, row{ID: c.ID, Name: c.Name, Severity: c.Kind == "severity", Repeats: reps[c.ID].Repeats, Minutes: reps[c.ID].EveryS / 60})
+		}
+		data["WebRepeat"] = map[string]any{"Rows": rows, "Minutes": int64(st.WebRepeatEvery.Minutes())}
+	}
+	d.render(w, r, http.StatusOK, "channels", data)
+}
+
+// webRepeatsSave stores how many times each channel repeats an unread notification to the web clients
+func (d *Dashboard) webRepeatsSave(w http.ResponseWriter, r *http.Request) {
+	all, err := d.Store.Channels(r.Context())
+	if err != nil {
+		d.unavailable(w, r, err)
+		return
+	}
+	bad := func() { d.render(w, r, http.StatusBadRequest, "error", map[string]any{"Message": "err.form"}) }
+	// The general interval, then each channel: how many times, and its own interval if it has one
+	if v := strings.TrimSpace(r.PostFormValue("every")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 1440 {
+			bad()
+			return
+		}
+		if res := d.call(r, "PUT", "/v1/admin/settings/web.repeat_interval", map[string]any{"value": n * 60}); !res.OK() {
+			bad()
+			return
+		}
+	}
+	reps := map[string]store.WebRepeat{}
+	for _, c := range all {
+		v := strings.TrimSpace(r.PostFormValue("rep_" + c.ID))
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 20 {
+			bad()
+			return
+		}
+		one := store.WebRepeat{Repeats: n}
+		if e := strings.TrimSpace(r.PostFormValue("every_" + c.ID)); e != "" {
+			m, err := strconv.Atoi(e)
+			if err != nil || m < 1 || m > 1440 {
+				bad()
+				return
+			}
+			one.EveryS = int64(m) * 60
+		}
+		reps[c.ID] = one
+	}
+	if len(reps) > 0 {
+		if res := d.call(r, "PUT", "/v1/admin/web/repeats", map[string]any{"channels": reps}); !res.OK() {
+			d.render(w, r, res.Status, "error", map[string]any{"Message": "err.form"})
+			return
+		}
+	}
+	http.Redirect(w, r, prefix+"/channels?done=saved#web-repeat", http.StatusSeeOther)
 }
 
 // allHostGroups lists the host groups readable by the service users of the sources

@@ -4,7 +4,7 @@
 package net.nicodroid.zweep.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -69,9 +69,7 @@ fun NotificationsScreen(vm: AppViewModel, open: (EventCard) -> Unit) {
     val view = settings[Settings.NOTIF_VIEW]?.takeIf { it == "history" || it == "all" } ?: "active"
     var search by rememberSaveable { mutableStateOf(false) }
     var confirmRead by remember { mutableStateOf(false) }
-    // Forced close: long press on an active alert, then two warnings
-    var closing by remember { mutableStateOf<EventCard?>(null) }
-    var closeStep by remember { mutableStateOf(0) }
+    var refreshing by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val active = events.count { !it.archived }
     val shown = events.filter { e ->
@@ -120,31 +118,31 @@ fun NotificationsScreen(vm: AppViewModel, open: (EventCard) -> Unit) {
                 dismissButton = { TextButton({ confirmRead = false }) { Text(stringResource(R.string.action_cancel)) } },
             )
         }
-        closing?.let { c -> CloseAlertDialogs(vm, c, closeStep, { closeStep = it }) { closing = null; closeStep = 0 } }
         if (Permissions.essentialMissing(ctx)) {
             Text(stringResource(R.string.banner_permissions), color = Zw.warningText, fontSize = 13.sp,
                 modifier = Modifier.fillMaxWidth().background(Zw.surface).padding(12.dp))
         }
-        if (shown.isEmpty()) {
-            Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(if (events.isEmpty()) R.string.empty_no_notifications else R.string.empty_no_match), color = Zw.textPrimary, fontWeight = FontWeight.Bold)
-                Text(stringResource(if (events.isEmpty()) R.string.empty_no_notifications_hint else R.string.empty_no_match_hint), color = Zw.textSecondary, fontSize = 13.sp)
-            }
-        } else {
+        // Pulled down at the top: the servers are asked again (an empty list can be pulled too)
+        PullToRefresh(refreshing, onRefresh = { refreshing = true; vm.refresh { refreshing = false } }, modifier = Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(shown, key = { "${it.serverRef}/${it.sid}" }) { e ->
-                    val closable = e.kind != "recovery" && e.kind != "test" && vm.canClose(e.serverRef)
-                    EventRow(e, now, servers.size > 1, onLongClick = if (closable) ({ closing = e; closeStep = 1 }) else null) { open(e) }
+                if (shown.isEmpty()) {
+                    item {
+                        Column(Modifier.fillParentMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(stringResource(if (events.isEmpty()) R.string.empty_no_notifications else R.string.empty_no_match), color = Zw.textPrimary, fontWeight = FontWeight.Bold)
+                            Text(stringResource(if (events.isEmpty()) R.string.empty_no_notifications_hint else R.string.empty_no_match_hint), color = Zw.textSecondary, fontSize = 13.sp)
+                        }
+                    }
                 }
+                items(shown, key = { "${it.serverRef}/${it.sid}" }) { e -> EventRow(e, now, servers.size > 1) { open(e) } }
             }
         }
     }
 }
 
 @Composable
-private fun EventRow(e: EventCard, now: Long, showServer: Boolean, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun EventRow(e: EventCard, now: Long, showServer: Boolean, onClick: () -> Unit) {
     val open = e.kind != "recovery" && e.kind != "test"
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 12.dp, vertical = 6.dp)) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp)) {
         val custom = e.channelName.isNotEmpty()
         SeverityBar(e.sev, color = if (custom) channelColor(e.channelColor) else null)
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
@@ -193,57 +191,4 @@ private fun reasonText(reason: String): String = when (reason) {
     NotShownReason.PERMISSION -> stringResource(R.string.reason_permission)
     NotShownReason.FILTER -> stringResource(R.string.reason_filter)
     else -> reason
-}
-
-/**
- * Forced close of an alert: 1) the option, 2) what it does (and whether Zabbix still has the
- * problem open), 3) the operation is irreversible. The recovery reaches every recipient.
- */
-@Composable
-private fun CloseAlertDialogs(vm: AppViewModel, e: EventCard, step: Int, setStep: (Int) -> Unit, dismiss: () -> Unit) {
-    val ctx = LocalContext.current
-    var busy by remember { mutableStateOf(false) }
-    when (step) {
-        1 -> AlertDialog(
-            onDismissRequest = dismiss,
-            title = { Text(e.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = { Text(e.host, color = Zw.textSecondary) },
-            confirmButton = { TextButton({ setStep(2) }) { Text(stringResource(R.string.close_alert_action), color = Zw.errorText) } },
-            dismissButton = { TextButton(dismiss) { Text(stringResource(R.string.action_cancel)) } },
-        )
-        2 -> AlertDialog(
-            onDismissRequest = dismiss,
-            title = { Text(stringResource(R.string.close_alert_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.close_alert_warning1))
-                    if (vm.zabbixOpen(e)) Text(stringResource(R.string.close_alert_zabbix_open), color = Zw.warningText, fontWeight = FontWeight.SemiBold)
-                }
-            },
-            confirmButton = { TextButton({ setStep(3) }) { Text(stringResource(R.string.action_continue)) } },
-            dismissButton = { TextButton(dismiss) { Text(stringResource(R.string.action_cancel)) } },
-        )
-        3 -> AlertDialog(
-            onDismissRequest = { if (!busy) dismiss() },
-            title = { Text(stringResource(R.string.close_alert_title)) },
-            text = { Text(stringResource(R.string.close_alert_warning2), color = Zw.errorText, fontWeight = FontWeight.SemiBold) },
-            confirmButton = {
-                TextButton(enabled = !busy, onClick = {
-                    busy = true
-                    vm.closeAlert(e.serverRef, e.sid) { err ->
-                        busy = false
-                        val msg = when (err) {
-                            null -> R.string.close_alert_done
-                            "close_not_allowed" -> R.string.close_alert_not_allowed
-                            "alert_not_open" -> R.string.close_alert_not_open
-                            else -> R.string.close_alert_failed
-                        }
-                        android.widget.Toast.makeText(ctx, ctx.getString(msg), android.widget.Toast.LENGTH_LONG).show()
-                        dismiss()
-                    }
-                }) { Text(stringResource(R.string.close_alert_confirm), color = Zw.errorText) }
-            },
-            dismissButton = { TextButton(enabled = !busy, onClick = dismiss) { Text(stringResource(R.string.action_cancel)) } },
-        )
-    }
 }

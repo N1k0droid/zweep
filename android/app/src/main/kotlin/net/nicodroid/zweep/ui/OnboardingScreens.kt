@@ -108,7 +108,7 @@ fun AddServerScreen(vm: AppViewModel, r: Route.AddServer, onDone: () -> Unit, on
                 }
             }
             error?.let { Text(it, color = Zw.errorText, fontSize = 13.sp) }
-            Button(enabled = ready, onClick = {
+            Button(enabled = ready, shape = Zw.control, onClick = {
                 busy = true
                 error = null
                 val pinList = pins.split(',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -167,7 +167,7 @@ fun PermissionsScreen(onDone: () -> Unit) {
             TextButton({ openInBrowser(ctx, "https://dontkillmyapp.com/" + Build.MANUFACTURER.lowercase().replace(" ", "-")) }) {
                 Text(stringResource(R.string.vendor_open))
             }
-            Button(onDone) { Text(stringResource(R.string.action_done)) }
+            Button(onDone, shape = Zw.control) { Text(stringResource(R.string.action_done)) }
         }
     }
 }

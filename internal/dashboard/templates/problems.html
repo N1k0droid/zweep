@@ -20,7 +20,7 @@
 <p class="muted small">{{.T "problems.hint"}} {{.T "problems.count" (len (index .Data "Rows")) (index .Data "Total")}}</p>
 {{with index .Data "Rows"}}
 <table class="clickable">
-  <thead><tr><th>Severity</th><th>Problem</th><th>Host</th><th>{{$.T "col.source"}}</th><th>{{$.T "problems.since"}}</th><th>{{$.T "problems.duration"}}</th><th>{{$.T "col.state"}}</th></tr></thead>
+  <thead><tr><th>Severity</th><th>Problem</th><th>Host</th><th>{{$.T "col.source"}}</th><th>{{$.T "problems.since"}}</th><th>{{$.T "problems.duration"}}</th><th class="st">{{$.T "col.state"}}</th></tr></thead>
   <tbody>
   {{range .}}
   <tr>
@@ -30,7 +30,7 @@
     <td>{{.Source}}</td>
     <td class="nowrap">{{.Since}}</td>
     <td class="nowrap">{{.Duration}}</td>
-    <td>{{if .Acknowledged}}<span class="pill muted">Acknowledged</span>{{else}}<span class="pill err">Unacknowledged</span>{{end}}{{if .Suppressed}} <span class="pill muted">Suppressed</span>{{end}}</td>
+    <td class="st">{{if .Acknowledged}}<span class="pill muted">Acknowledged</span>{{else}}<span class="pill err">Unacknowledged</span>{{end}}{{if .Suppressed}} <span class="pill muted">Suppressed</span>{{end}}</td>
   </tr>
   {{end}}
   </tbody>

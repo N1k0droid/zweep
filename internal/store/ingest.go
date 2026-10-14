@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -172,6 +173,18 @@ func (s *Store) Ingest(ctx context.Context, ev *zbx.Event, source *Source, repea
 		if err != nil {
 			return err
 		}
+		// An update made from Zweep reaches Zabbix signed by the service user, with the name of the user
+		// in the first line of the message. That line alone proves nothing: anybody who may comment in
+		// Zabbix can write it. The name is given to the clients only when this server did send that very
+		// message for that event a short time ago.
+		if ev.Update != nil {
+			ev.Update.ZweepUser = ""
+			if ev.Update.Message != "" {
+				if ev.Update.ZweepUser, err = updateAuthor(ctx, tx, ev); err != nil {
+					return err
+				}
+			}
+		}
 		sid := ev.SID
 		if res.Status == IngestCollision {
 			sid = res.IdemKey // distinct alarm on the device, never merged with the other event
@@ -235,6 +248,36 @@ func customChannelsTx(ctx context.Context, tx pgx.Tx, userID string) ([]routing.
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// updateSentWithin: how long after an acknowledgement or a message was sent from Zweep the update that
+// Zabbix sends back is still taken as that one
+const updateSentWithin = 30 * time.Minute
+
+// updateAuthor returns the Zweep user whose request produced the update of ev: a request for the same
+// source and event, sent recently, whose message as written in Zabbix is the message of the update.
+// Empty when there is none.
+func updateAuthor(ctx context.Context, tx pgx.Tx, ev *zbx.Event) (string, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT username, composed FROM zw_ack_request
+		WHERE source_id = $1 AND zbx_eventid = $2 AND state <> 'rejected' AND created_at > now() - $3::interval
+		ORDER BY created_at DESC LIMIT 20`, ev.Source, ev.EventID, updateSentWithin.String())
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	same := func(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n")) }
+	want := same(ev.Update.Message)
+	for rows.Next() {
+		var username, composed string
+		if err := rows.Scan(&username, &composed); err != nil {
+			return "", err
+		}
+		if same(composed) == want {
+			return username, nil
+		}
+	}
+	return "", rows.Err()
 }
 
 // eventPayload is the normalized event kept for idempotency and audit (never secrets)

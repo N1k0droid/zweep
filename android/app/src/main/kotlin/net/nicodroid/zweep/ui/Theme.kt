@@ -5,7 +5,9 @@ package net.nicodroid.zweep.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 
 /** Design tokens of the Zweep visual identity */
@@ -25,6 +27,9 @@ object Zw {
     val error = Color(0xFFEF4444)
     val errorText = Color(0xFFFCA5A5)
     val onSeverity = Color(0xFF0F172A) // text on severity fills: never white
+
+    /** Every button: a rectangle with slightly rounded corners, as in the web client and the dashboard */
+    val control = RoundedCornerShape(4.dp)
 
     fun severity(sev: Int) = when (sev.coerceAtLeast(0)) {
         0 -> Color(0xFF97AAB3)

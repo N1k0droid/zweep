@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -30,6 +32,25 @@ type Settings struct {
 	OrphanAutoClose     bool          // close alerts whose problem Zabbix no longer has open
 	OrphanAfter         time.Duration // how long Zabbix must show it resolved or gone first
 	AppPublicDownload   bool          // the APK is downloadable without login on the public port (first install)
+	WebClient           bool          // devices of platform web (the web client plugin) are accepted; off: all revoked, none enrolled
+	WebPasswordLogin    bool          // a web client may be activated with username and password too (default: code only)
+	WebMinimalNotify    bool          // notifications to web clients say only that there is an alarm, not which (default: no)
+	WebRepeatEvery      time.Duration // web clients: an unread notification of a channel that repeats is sent again this often
+	WebSessionIdle      time.Duration // web clients: disconnected when the browser does not open the page for this long (0: never)
+	WebRequireBound     bool          // web clients: a session must be bound to a key of the browser (default: yes)
+	WebRequireNotify    bool          // web clients: activated only when the browser allowed notifications (default: yes)
+	WebUnboundGrace     time.Duration // web clients that must be bound and are not: disconnected after this long (0: never)
+	WebZabbixLink       bool          // web clients receive the address of the Zabbix frontend, for "Open in Zabbix" (default: no)
+	WebPushBurst        int           // web clients: notifications a browser gets at once in a storm of alarms
+	WebPushEvery        time.Duration // web clients: after those, one more notification this often
+	WebPushBurstDis     int           // the same for Disaster, which has an allowance of its own
+	WebPushEveryDis     time.Duration
+	WebPushRate         int           // web clients: notifications a second to one push service, all browsers together
+	WebURL              string        // public address of the web client plugin: the dashboard builds the activation links with it
+	PasswordMaxAge      time.Duration // an operator's password enrolls devices for this long (0: no limit)
+	PasswordUsesPerDev  int           // enrollments with the password for each device the user may have (0: no limit)
+	MaxPhones           int           // devices of the app per user, unless the user has its own value (0: no limit)
+	MaxWeb              int           // web clients per user, unless the user has its own value (0: no limit)
 }
 
 // DefaultSettings are the default values
@@ -48,6 +69,20 @@ func DefaultSettings() Settings {
 		AckRetention:        90 * 24 * time.Hour,
 		OrphanAutoClose:     true,
 		OrphanAfter:         time.Hour,
+		PasswordMaxAge:      7 * 24 * time.Hour,
+		WebRepeatEvery:      10 * time.Minute,
+		WebSessionIdle:      30 * 24 * time.Hour,
+		WebRequireBound:     true,
+		WebRequireNotify:    true,
+		WebUnboundGrace:     7 * 24 * time.Hour,
+		WebPushBurst:        10,
+		WebPushEvery:        10 * time.Second,
+		WebPushBurstDis:     20,
+		WebPushEveryDis:     5 * time.Second,
+		WebPushRate:         50,
+		PasswordUsesPerDev:  3,
+		MaxPhones:           1,
+		MaxWeb:              1,
 	}
 }
 
@@ -72,6 +107,24 @@ func durationSetting(min, max time.Duration, f func(*Settings) *time.Duration) s
 				return fmt.Errorf("value must be between %v and %v", min, max)
 			}
 			*f(s) = d
+			return nil
+		},
+	}
+}
+
+// countSetting is a whole number between min and max
+func countSetting(min, max int, f func(*Settings) *int) settingSpec {
+	return settingSpec{
+		get: func(s *Settings) any { return int64(*f(s)) },
+		set: func(s *Settings, raw json.RawMessage) error {
+			var n int
+			if err := json.Unmarshal(raw, &n); err != nil {
+				return fmt.Errorf("value must be a whole number")
+			}
+			if n < min || n > max {
+				return fmt.Errorf("value must be between %d and %d", min, max)
+			}
+			*f(s) = n
 			return nil
 		},
 	}
@@ -108,6 +161,74 @@ var settingSpecs = map[string]settingSpec{
 		get: func(s *Settings) any { return s.AppPublicDownload },
 		set: func(s *Settings, raw json.RawMessage) error {
 			return json.Unmarshal(raw, &s.AppPublicDownload)
+		},
+	},
+	// 0 turns the rule off
+	"password.max_age":         durationSetting(0, 365*day, func(s *Settings) *time.Duration { return &s.PasswordMaxAge }),
+	"password.uses_per_device": countSetting(0, 100, func(s *Settings) *int { return &s.PasswordUsesPerDev }),
+	"devices.max_phones":       countSetting(0, 100, func(s *Settings) *int { return &s.MaxPhones }),
+	"devices.max_web":          countSetting(0, 100, func(s *Settings) *int { return &s.MaxWeb }),
+	"web.repeat_interval":      durationSetting(time.Minute, day, func(s *Settings) *time.Duration { return &s.WebRepeatEvery }),
+	"web.session_idle":         durationSetting(0, 365*day, func(s *Settings) *time.Duration { return &s.WebSessionIdle }),
+	"web.unbound_grace":        durationSetting(0, 365*day, func(s *Settings) *time.Duration { return &s.WebUnboundGrace }),
+	// The sending limits cannot be turned off: at least one notification, at most one a second
+	"web.push_burst":             countSetting(1, 100, func(s *Settings) *int { return &s.WebPushBurst }),
+	"web.push_interval":          durationSetting(time.Second, 5*time.Minute, func(s *Settings) *time.Duration { return &s.WebPushEvery }),
+	"web.push_burst_disaster":    countSetting(1, 100, func(s *Settings) *int { return &s.WebPushBurstDis }),
+	"web.push_interval_disaster": durationSetting(time.Second, 5*time.Minute, func(s *Settings) *time.Duration { return &s.WebPushEveryDis }),
+	"web.push_rate":              countSetting(10, 200, func(s *Settings) *int { return &s.WebPushRate }),
+	"web.url": {
+		get: func(s *Settings) any { return s.WebURL },
+		set: func(s *Settings, raw json.RawMessage) error {
+			var v string
+			if err := json.Unmarshal(raw, &v); err != nil {
+				return fmt.Errorf("value must be an address")
+			}
+			v = strings.TrimRight(strings.TrimSpace(v), "/")
+			if v != "" {
+				u, err := url.Parse(v)
+				if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || len(v) > 200 {
+					return fmt.Errorf("value must be an address like https://web.example.com, without a path")
+				}
+			}
+			s.WebURL = v
+			return nil
+		},
+	},
+	"web.password_login": {
+		get: func(s *Settings) any { return s.WebPasswordLogin },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebPasswordLogin)
+		},
+	},
+	"web.minimal_notifications": {
+		get: func(s *Settings) any { return s.WebMinimalNotify },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebMinimalNotify)
+		},
+	},
+	"web.require_notifications": {
+		get: func(s *Settings) any { return s.WebRequireNotify },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebRequireNotify)
+		},
+	},
+	"web.require_bound": {
+		get: func(s *Settings) any { return s.WebRequireBound },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebRequireBound)
+		},
+	},
+	"web.zabbix_link": {
+		get: func(s *Settings) any { return s.WebZabbixLink },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebZabbixLink)
+		},
+	},
+	"web.enabled": {
+		get: func(s *Settings) any { return s.WebClient },
+		set: func(s *Settings, raw json.RawMessage) error {
+			return json.Unmarshal(raw, &s.WebClient)
 		},
 	},
 	"notifications.repeats": {

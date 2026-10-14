@@ -37,6 +37,9 @@ const (
 	DeviceRevoked       = "revoked"
 )
 
+// PlatformWeb is the platform of the devices the web client plugin enrolls on behalf of a browser
+const PlatformWeb = "web"
+
 // Token prefixes make device tokens and enrollment codes recognizable (e.g. by secret scanners)
 const (
 	DeviceTokenPrefix = "zwd_"
@@ -47,7 +50,62 @@ const (
 var (
 	ErrEnrollmentInvalid = errors.New("enrollment code invalid, used or expired")
 	ErrRevoked           = errors.New("device revoked")
+	ErrPasswordExpired   = errors.New("password expired")
+	ErrDeviceLimit       = errors.New("device limit reached")
+	ErrWebNotAllowed     = errors.New("web client not allowed for the user")
+	ErrKeyRequired       = errors.New("the web session must be bound to a key of the browser")
 )
+
+// EnrollPolicy carries the settings an enrollment must respect (0: no limit)
+type EnrollPolicy struct {
+	MaxPhones      int
+	MaxWeb         int
+	UsesPerDevice  int           // enrollments with the password for each device the user may have
+	PasswordMaxAge time.Duration // how long a password enrolls devices
+	WebOn          bool          // the web client is on: its devices count in the allowance of the password
+	RequireBound   bool          // a web client is accepted only with a session bound to a key of its browser
+}
+
+// PasswordState says where the password of an operator stands
+type PasswordState struct {
+	Expired   bool
+	ExpiresAt *time.Time // by time; nil: no time limit
+	UsesLeft  int        // -1: no limit
+}
+
+// limits resolves the per-user values over the defaults
+func (p EnrollPolicy) limits(u *User) (phones, web int) {
+	phones, web = p.MaxPhones, p.MaxWeb
+	if u.MaxPhones != nil {
+		phones = *u.MaxPhones
+	}
+	if u.MaxWeb != nil {
+		web = *u.MaxWeb
+	}
+	return phones, web
+}
+
+// Password tells whether the password of the user still enrolls devices. It expires by time and by
+// number of enrollments: UsesPerDevice for each device the user may have.
+func (p EnrollPolicy) Password(u *User, now time.Time) PasswordState {
+	st := PasswordState{UsesLeft: -1}
+	if p.PasswordMaxAge > 0 && u.PasswordValidFrom != nil {
+		t := u.PasswordValidFrom.Add(p.PasswordMaxAge)
+		st.ExpiresAt = &t
+		st.Expired = !now.Before(t)
+	}
+	phones, web := p.limits(u)
+	devices, unlimited := phones, phones == 0
+	if p.WebOn && u.WebEnabled {
+		devices += web
+		unlimited = unlimited || web == 0
+	}
+	if p.UsesPerDevice > 0 && !unlimited {
+		st.UsesLeft = max(p.UsesPerDevice*devices-u.PasswordUses, 0)
+		st.Expired = st.Expired || st.UsesLeft == 0
+	}
+	return st
+}
 
 // DeviceInfo is reported by the app at enrollment and in hello/status frames
 type DeviceInfo struct {
@@ -58,6 +116,8 @@ type DeviceInfo struct {
 	OSVersion  string `json:"os_version,omitempty"`
 	Vendor     string `json:"vendor,omitempty"`
 	Model      string `json:"model,omitempty"`
+	// Bound: a web client, said by the plugin: the session of the browser is bound to a key it holds
+	Bound bool `json:"bound,omitempty"`
 }
 
 // Device is an enrolled device as seen by an authenticated request
@@ -106,7 +166,7 @@ func (s *Store) CreateEnrollment(ctx context.Context, username, createdBy string
 }
 
 // EnrollWithCode consumes an enrollment code and creates the device; the plaintext token is returned once
-func (s *Store) EnrollWithCode(ctx context.Context, code string, info DeviceInfo) (*Device, string, error) {
+func (s *Store) EnrollWithCode(ctx context.Context, code string, info DeviceInfo, pol EnrollPolicy) (*Device, string, error) {
 	var dev *Device
 	var token string
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
@@ -120,7 +180,7 @@ func (s *Store) EnrollWithCode(ctx context.Context, code string, info DeviceInfo
 		} else if err != nil {
 			return err
 		}
-		dev, token, err = createDeviceTx(ctx, tx, userID, info)
+		dev, token, err = createDeviceTx(ctx, tx, userID, info, pol, false)
 		if err != nil {
 			return err
 		}
@@ -130,20 +190,56 @@ func (s *Store) EnrollWithCode(ctx context.Context, code string, info DeviceInfo
 	return dev, token, err
 }
 
-// EnrollUser creates a device for a user whose credentials were already verified by the caller
-func (s *Store) EnrollUser(ctx context.Context, userID string, info DeviceInfo) (*Device, string, error) {
+// EnrollUser creates a device for a user whose credentials were already verified by the caller: the
+// password must not be expired, and the enrollment counts as one use of it
+func (s *Store) EnrollUser(ctx context.Context, userID string, info DeviceInfo, pol EnrollPolicy) (*Device, string, error) {
 	var dev *Device
 	var token string
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		var err error
-		dev, token, err = createDeviceTx(ctx, tx, userID, info)
+		dev, token, err = createDeviceTx(ctx, tx, userID, info, pol, true)
 		return err
 	})
 	return dev, token, err
 }
 
 // createDeviceTx creates the device positioned at the recipient's current head: it receives messages from now on
-func createDeviceTx(ctx context.Context, tx pgx.Tx, userID string, info DeviceInfo) (*Device, string, error) {
+// Before that it applies the rules of the user: the web client must be allowed, the devices of the
+// platform must be below the limit, and with a password the password must not be expired. The row of
+// the user is locked, so two enrollments at once cannot both pass the limit.
+func createDeviceTx(ctx context.Context, tx pgx.Tx, userID string, info DeviceInfo, pol EnrollPolicy, withPassword bool) (*Device, string, error) {
+	u, err := scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM zw_user WHERE id = $1 FOR UPDATE`, userID))
+	if err != nil {
+		return nil, "", err
+	}
+	web := info.Platform == PlatformWeb
+	if web && !u.WebEnabled {
+		return nil, "", ErrWebNotAllowed
+	}
+	if web && !info.Bound && (pol.RequireBound || u.WebRequireBound) {
+		return nil, "", ErrKeyRequired
+	}
+	if withPassword && pol.Password(u, time.Now()).Expired {
+		return nil, "", ErrPasswordExpired
+	}
+	limit, webLimit := pol.limits(u)
+	if web {
+		limit = webLimit
+	}
+	if limit > 0 {
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM zw_device WHERE user_id = $1 AND revoked_at IS NULL AND (platform = 'web') = $2`, userID, web).Scan(&n); err != nil {
+			return nil, "", err
+		}
+		if n >= limit {
+			return nil, "", ErrDeviceLimit
+		}
+	}
+	if withPassword {
+		if _, err := tx.Exec(ctx, `UPDATE zw_user SET password_uses = password_uses + 1 WHERE id = $1`, userID); err != nil {
+			return nil, "", err
+		}
+	}
 	id, err := NewUUIDv7()
 	if err != nil {
 		return nil, "", err
@@ -152,10 +248,7 @@ func createDeviceTx(ctx context.Context, tx pgx.Tx, userID string, info DeviceIn
 	if err != nil {
 		return nil, "", err
 	}
-	dev := &Device{ID: id, UserID: userID, Name: info.Name, Platform: info.Platform, Scopes: DefaultScopes, State: DeviceEnrolled}
-	if err := tx.QueryRow(ctx, `SELECT username FROM zw_user WHERE id = $1`, userID).Scan(&dev.Username); err != nil {
-		return nil, "", notFound(err)
-	}
+	dev := &Device{ID: id, UserID: userID, Username: u.Username, Name: info.Name, Platform: info.Platform, Scopes: DefaultScopes, State: DeviceEnrolled}
 	if _, err := tx.Exec(ctx, `INSERT INTO zw_device (id, user_id, name, platform) VALUES ($1, $2, $3, $4)`, id, userID, info.Name, info.Platform); err != nil {
 		return nil, "", err
 	}
@@ -239,6 +332,33 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID UUID, state, by, reas
 	})
 }
 
+// RevokeWebDevices revokes every device of platform web with its tokens and pending deliveries (the
+// web client was turned off). It returns the devices revoked now.
+func (s *Store) RevokeWebDevices(ctx context.Context, by, reason string) ([]UUID, error) {
+	var ids []UUID
+	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE zw_device SET revoked_at = now(), revoked_by = $2, revoke_reason = $3
+			WHERE platform = $1 AND revoked_at IS NULL RETURNING id`, PlatformWeb, by, reason)
+		if err != nil {
+			return err
+		}
+		ids, err = pgx.CollectRows(rows, pgx.RowTo[UUID])
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM zw_device_token WHERE device_id = ANY($1)`, ids); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM zw_delivery WHERE device_id = ANY($1) AND state IN ('queued', 'sent', 'unconfirmed')`, ids); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE zw_device_status SET state = $2, updated_at = now() WHERE device_id = ANY($1)`, ids, DeviceRevoked)
+		return err
+	})
+	return ids, err
+}
+
 // DeviceStatus is the per-device state shown in the dashboard and used by the heartbeat
 type DeviceStatus struct {
 	ID               UUID            `json:"id"`
@@ -260,6 +380,14 @@ type DeviceStatus struct {
 	RevokedAt        *time.Time      `json:"revoked_at,omitempty"`
 	Pending          int64           `json:"pending"`
 	Unconfirmed      int64           `json:"unconfirmed"`
+	LastIP           string          `json:"last_ip,omitempty"` // where it last connected from
+	// IPReported: a web client whose address is the browser's, reported by the plugin (otherwise the
+	// address of a web client is the plugin's own)
+	IPReported bool `json:"ip_reported,omitempty"`
+	// BrowserSeenAt: a web client, when its browser last opened the page (LastSeenAt is the plugin's)
+	BrowserSeenAt *time.Time `json:"browser_seen_at,omitempty"`
+	// BrowserBound: a web client, whether its session is bound to a key of the browser (nil: not said)
+	BrowserBound *bool `json:"browser_bound,omitempty"`
 }
 
 // Devices lists devices, optionally of one user, with their status
@@ -269,7 +397,8 @@ func (s *Store) Devices(ctx context.Context, username string) ([]DeviceStatus, e
 		       COALESCE(st.app_version, ''), COALESCE(st.app_build, 0), COALESCE(st.os_version, ''), COALESCE(st.vendor, ''), COALESCE(st.model, ''),
 		       st.perms, st.dnd_until, d.created_at, d.revoked_at,
 		       (SELECT count(*) FROM zw_delivery x WHERE x.device_id = d.id AND x.state IN ('queued', 'sent')),
-		       (SELECT count(*) FROM zw_delivery x WHERE x.device_id = d.id AND x.state = 'unconfirmed')
+		       (SELECT count(*) FROM zw_delivery x WHERE x.device_id = d.id AND x.state = 'unconfirmed'),
+		       COALESCE(host(st.last_ip), ''), st.last_ip_reported, st.browser_seen_at, st.browser_bound
 		FROM zw_device d
 		JOIN zw_user u ON u.id = d.user_id
 		JOIN zw_device_status st ON st.device_id = d.id
@@ -281,9 +410,40 @@ func (s *Store) Devices(ctx context.Context, username string) ([]DeviceStatus, e
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (DeviceStatus, error) {
 		var d DeviceStatus
 		err := r.Scan(&d.ID, &d.Username, &d.Name, &d.Platform, &d.State, &d.AckedSeq, &d.LastSeenAt, &d.UnreachableSince,
-			&d.AppVersion, &d.AppBuild, &d.OSVersion, &d.Vendor, &d.Model, &d.Perms, &d.DNDUntil, &d.CreatedAt, &d.RevokedAt, &d.Pending, &d.Unconfirmed)
+			&d.AppVersion, &d.AppBuild, &d.OSVersion, &d.Vendor, &d.Model, &d.Perms, &d.DNDUntil, &d.CreatedAt, &d.RevokedAt, &d.Pending, &d.Unconfirmed, &d.LastIP, &d.IPReported, &d.BrowserSeenAt, &d.BrowserBound)
 		return d, err
 	})
+}
+
+// ConnectedFrom records the address a device connected from; it reports whether it differs from the
+// one before (also true the first time). reported: the address of the browser of a web client, told
+// by the plugin.
+func (s *Store) ConnectedFrom(ctx context.Context, deviceID UUID, ip netip.Addr, reported bool) (bool, error) {
+	if !ip.IsValid() {
+		return false, nil
+	}
+	tag, err := s.Pool.Exec(ctx, `
+		UPDATE zw_device_status SET last_ip = $2, last_ip_reported = $3
+		WHERE device_id = $1 AND (last_ip IS DISTINCT FROM $2 OR last_ip_reported <> $3)`, deviceID, ip, reported)
+	return err == nil && tag.RowsAffected() > 0, err
+}
+
+// Unbound reports a web client whose plugin said its session is not bound to the browser
+func (d DeviceStatus) Unbound() bool { return d.BrowserBound != nil && !*d.BrowserBound }
+
+// Bound reports a web client whose plugin said its session is bound to the browser
+func (d DeviceStatus) Bound() bool { return d.BrowserBound != nil && *d.BrowserBound }
+
+// BrowserBound records whether the session of a web client is bound to a key of its browser
+func (s *Store) BrowserBound(ctx context.Context, deviceID UUID, bound bool) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE zw_device_status SET browser_bound = $2 WHERE device_id = $1 AND browser_bound IS DISTINCT FROM $2`, deviceID, bound)
+	return err
+}
+
+// BrowserSeen records when the browser of a web client last opened the page
+func (s *Store) BrowserSeen(ctx context.Context, deviceID UUID, at time.Time) error {
+	_, err := s.Pool.Exec(ctx, `UPDATE zw_device_status SET browser_seen_at = $2 WHERE device_id = $1 AND (browser_seen_at IS NULL OR browser_seen_at < $2)`, deviceID, at)
+	return err
 }
 
 // SetDeviceState records a state transition and last contact; it returns the previous state
@@ -343,5 +503,42 @@ func (s *Store) MarkUnreachable(ctx context.Context, after time.Duration) ([]UUI
 		var id UUID
 		err := r.Scan(&id)
 		return id, err
+	})
+}
+
+// WebRepeat is how a channel repeats an unread notification to the web clients
+type WebRepeat struct {
+	Repeats int   `json:"repeats"`           // times (0: never)
+	EveryS  int64 `json:"every_s,omitempty"` // seconds between them (0: the interval of the settings)
+}
+
+// WebRepeats returns, per channel, how an unread notification is sent again to a web client
+func (s *Store) WebRepeats(ctx context.Context) (map[string]WebRepeat, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT channel_id, repeats, COALESCE(every_s, 0) FROM zw_channel_web_repeat`)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]WebRepeat{}
+	var id string
+	var w WebRepeat
+	_, err = pgx.ForEachRow(rows, []any{&id, &w.Repeats, &w.EveryS}, func() error { out[id] = w; return nil })
+	return out, err
+}
+
+// SetWebRepeats stores how the given channels repeat; ErrNotFound for an unknown channel
+func (s *Store) SetWebRepeats(ctx context.Context, repeats map[string]WebRepeat) error {
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		for id, w := range repeats {
+			tag, err := tx.Exec(ctx, `
+				INSERT INTO zw_channel_web_repeat (channel_id, repeats, every_s) SELECT id, $2, NULLIF($3, 0) FROM zw_channel WHERE id = $1
+				ON CONFLICT (channel_id) DO UPDATE SET repeats = EXCLUDED.repeats, every_s = EXCLUDED.every_s`, id, w.Repeats, w.EveryS)
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				return ErrNotFound
+			}
+		}
+		return nil
 	})
 }

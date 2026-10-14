@@ -9,9 +9,10 @@ CYCLONEDX   := github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o dist/zweep-server ./cmd/zweep-server
 
-# Database tests need ZWEEP_TEST_DATABASE_URL; Zabbix integration tests need ZWEEP_TEST_ZABBIX_URLS
+# Database tests need ZWEEP_TEST_DATABASE_URL; Zabbix integration tests need ZWEEP_TEST_ZABBIX_URLS.
+# The integration tests of internal/server take longer than the ten minutes go test allows by default.
 test:
-	go test -race ./...
+	go test -race -timeout 30m ./...
 
 lint:
 	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)

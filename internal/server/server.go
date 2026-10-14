@@ -133,6 +133,7 @@ func New(cfg *config.Config) (*Server, error) {
 	acfg := api.DefaultConfig()
 	acfg.NodeID, acfg.ServerID, acfg.ServiceURLs, acfg.Keepalive = cfg.NodeID, serverID, cfg.ServiceURLs, cfg.Keepalive
 	acfg.PublicURL = tm.URL
+	acfg.WebPluginIPs = cfg.WebPluginIPs
 	var apks *apk.Catalog
 	if cfg.APKDir != "" {
 		apks = &apk.Catalog{Dir: cfg.APKDir}

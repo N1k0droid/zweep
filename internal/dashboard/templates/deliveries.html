@@ -4,7 +4,7 @@
 <h1>{{.T "nav.deliveries"}}</h1>
 <div class="chips">
   <a class="chip{{if eq $f.State ""}} on{{end}}" href="{{index $sl ""}}">{{.T "deliveries.all"}}</a>
-  {{range (list "queued" "sent" "delivered" "shown" "not_shown" "unconfirmed")}}
+  {{range (index .Data "States")}}
   <a class="chip {{deliveryClass .}}{{if eq $f.State .}} on{{end}}" href="{{index $sl .}}">{{$.T (print "dstate." .)}} <b>{{index $c .}}</b></a>
   {{end}}
 </div>
@@ -29,7 +29,7 @@
 <p class="muted small">{{.T "deliveries.hint"}} {{.T "deliveries.found" (index .Data "Total")}}</p>
 {{with index .Data "Rows"}}
 <table>
-  <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.message"}}</th><th>{{$.T "col.state"}}</th><th class="num">{{$.T "col.latency"}}</th><th class="num">{{$.T "col.attempts"}}</th></tr></thead>
+  <thead><tr><th>{{$.T "col.created"}}</th><th>{{$.T "col.user"}}</th><th>{{$.T "col.message"}}</th><th class="st">{{$.T "col.state"}}</th><th class="num">{{$.T "col.latency"}}</th><th class="num">{{$.T "col.attempts"}}</th></tr></thead>
   <tbody>
   {{range .}}
   <tr>
@@ -37,7 +37,7 @@
     <td>{{.Username}}<br><span class="muted small">{{.Device}}</span></td>
     <td>{{with .Channel}}<span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span>{{else}}<span translate="no" class="sev sev{{sevIndex .Severity}}">{{sevName .Severity}}</span>{{end}} {{.Title}}
       <br><span class="muted small">{{$.T (print "kind." .Kind)}} · {{.Source}}{{if .EventID}} · <a href="/admin/deliveries?hours=2160&amp;event={{.EventID}}">#{{.EventID}}</a>{{end}} · seq {{.Seq}}</span></td>
-    <td><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span>{{with .NotShownReason}}<br><span class="muted small">{{$.T (print "reason." .)}}</span>{{end}}</td>
+    <td class="st"><span class="pill {{deliveryClass .State}}">{{$.T (print "dstate." .State)}}</span>{{with .NotShownReason}}<br><span class="muted small">{{$.T (print "reason." .)}}</span>{{end}}</td>
     <td class="num">{{.Latency}}</td>
     <td class="num">{{.Attempts}}</td>
   </tr>

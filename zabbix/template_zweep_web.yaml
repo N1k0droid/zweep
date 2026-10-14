@@ -1,0 +1,154 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: d72db28d1cd242feaa9cf155111ae3b7
+      name: Templates/Applications
+  templates:
+    - uuid: 03d98223c18c479faeeb3de01f52156e
+      template: 'Zweep Web by HTTP'
+      name: 'Zweep Web by HTTP'
+      description: "Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, and the web clients as the Zweep server sees them (manual, chapters 10.1 and 13.9). Optional: link it only where the web client is used.\nSet the macros {$ZWEEP.WEB.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an action that does NOT use the Zweep media type."
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: ea3ee1a59c764fb2a39005109f6af7c5
+          name: 'Web client plugin: HTTP status'
+          type: HTTP_AGENT
+          key: zweep.web.health
+          delay: 1m
+          description: 'Status code of GET /healthz of the plugin: 204 while it runs.'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^HTTP/\S+\s+(\d+)'
+                - \1
+          timeout: 5s
+          url: '{$ZWEEP.WEB.URL}/healthz'
+          status_codes: ''
+          retrieve_mode: HEADERS
+          tags:
+            - tag: component
+              value: health
+        - uuid: fd36dd8d934d4eb8ae4c2c739b44e49d
+          name: 'Metrics of the Zweep server'
+          type: HTTP_AGENT
+          key: zweep.web.metrics
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Raw Prometheus metrics of the Zweep server, source of the items about web clients; not stored.'
+          timeout: 5s
+          url: '{$ZWEEP.METRICS.URL}/metrics'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$ZWEEP.METRICS.TOKEN}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 750de64f36094010a8b36f857a54843e
+          name: 'Web clients connected'
+          type: DEPENDENT
+          key: 'zweep.web.devices.online'
+          delay: '0'
+          value_type: FLOAT
+          description: 'Web clients whose plugin holds their connection to Zweep. -1 while the web client is turned off in Zweep.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_devices{state="online"}'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
+        - uuid: d4b5a86d6773465da7b0c0a73b73cc31
+          name: 'Web clients disconnected'
+          type: DEPENDENT
+          key: 'zweep.web.devices.offline'
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_devices{state="offline"}'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
+        - uuid: e7bcc5856e424b27a9adcf95e56a7e06
+          name: 'Web clients unreachable'
+          type: DEPENDENT
+          key: 'zweep.web.devices.unreachable'
+          delay: '0'
+          value_type: FLOAT
+          description: 'Web clients without contact for longer than the heartbeat threshold: the plugin does not hold their connection.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_devices{state="unreachable"}'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
+      tags:
+        - tag: class
+          value: application
+        - tag: target
+          value: zweep-web
+      macros:
+        - macro: '{$ZWEEP.WEB.URL}'
+          value: 'https://web.example.com'
+          description: 'Public URL of the web client plugin, without path'
+        - macro: '{$ZWEEP.METRICS.URL}'
+          value: 'http://zweep.example.com:9464'
+          description: 'URL of the metrics listener of the Zweep server (ZWEEP_METRICS_LISTEN_HTTP), without path'
+        - macro: '{$ZWEEP.METRICS.TOKEN}'
+          description: 'Bearer token of the metrics listener; empty when only the allow-list protects it'
+  triggers:
+    - uuid: a0118d743e4d4df1aade2ada8a5e1502
+      expression: 'last(/Zweep Web by HTTP/zweep.web.health)<>204 and last(/Zweep Web by HTTP/zweep.web.health,#2)<>204'
+      name: 'Zweep Web: plugin not answering'
+      priority: HIGH
+      description: 'GET {$ZWEEP.WEB.URL}/healthz does not answer 204: the web client plugin is down or stalled. The browsers open no page and receive no notifications; the app is not affected.'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 7521af85948c467caabcec1278b4cc78
+      expression: 'nodata(/Zweep Web by HTTP/zweep.web.health,3m)=1'
+      name: 'Zweep Web: plugin not reachable'
+      priority: HIGH
+      description: 'No answer from {$ZWEEP.WEB.URL}/healthz for 3 minutes (plugin down, network, reverse proxy).'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 3c8fc3f1702a418aade246f55bca0098
+      expression: 'max(/Zweep Web by HTTP/zweep.web.devices.online,10m)=0 and min(/Zweep Web by HTTP/zweep.web.devices.unreachable,10m)>0'
+      name: 'Zweep Web: no web client connected'
+      priority: WARNING
+      description: 'There are web clients and none is connected: the plugin does not reach Zweep (address, allow-list of the plugin, Zweep down).'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: 71752e4a7f174c62afb6987d06361ff3
+      expression: 'max(/Zweep Web by HTTP/zweep.web.devices.online,10m)<0'
+      name: 'Zweep Web: the web client is turned off'
+      priority: INFO
+      description: 'Zweep exports nothing about web clients: the web client is turned off in the settings, or the metrics listener is not reachable.'
+      tags:
+        - tag: scope
+          value: notice

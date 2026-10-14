@@ -36,11 +36,13 @@ escalation goes on with its next step.
   the Zweep dashboard (or a Zweep account, separate from Zabbix and from the domain); the app never
   connects to Zabbix. In Zabbix they need a user only as the
   recipient of the media type, without frontend access.
-- **On-premises, nothing in between**: the app connects only to your Zweep server, next to Zabbix:
-  no cloud, no third-party push service (not even Google's).
-- **Works without internet**: on the company network alone (Wi-Fi, VPN) alarms keep arriving even
-  when the internet connection is down, which is often exactly when they matter. Services in the cloud
-  and push notifications need the internet.
+- **On-premises, nothing in between**: the Android app connects only to your Zweep server, next to
+  Zabbix: no cloud, no third-party push service (not even Google's).
+- **Works without internet**: with the server and the Android app, on the company network alone
+  (Wi-Fi, VPN) alarms keep arriving even when the internet connection is down, which is often exactly
+  when they matter. Services in the cloud and push notifications need the internet.
+- **Zweep Web, if you want it**: an optional plugin for iPhone, iPad and computers. Its notifications
+  are push notifications, so it is the one part of Zweep that needs the internet (see below).
 - **No costs**: no subscription, no per-message fees, no SMS gateway. Free software.
 - **An app only for monitoring**: alarms do not mix with the chats of Telegram, WhatsApp or Teams,
   where they are easily muted or ignored; every severity and channel has its own sound.
@@ -53,7 +55,25 @@ escalation goes on with its next step.
 
 ## How it works
 
+### Self-hosted only (the default)
+
+Zabbix, the Zweep server and the Android app: everything stays in your network, and alarms arrive
+without the internet. Phones can also reach the server over the internet (VPN, or Zweep published
+with HTTPS, [chapter 5.7](docs/manual/05-https.md#57-publishing-on-the-internet)): always a direct
+connection to your server, never through a third party.
+
 <p align="center"><img src="docs/assets/architecture.svg" alt="Zabbix sends alarms to the Zweep server (media type webhook) and is read through its API; the server delivers alarms and the problem list to the Android app over a WebSocket and receives receipts and acknowledgements; PostgreSQL stores the state; the dashboard runs on the admin port." width="100%"></p>
+
+### With Zweep Web (optional plugin)
+
+For iPhone, iPad and computers, the **Zweep Web plugin** offers the same screens in a browser. It is a
+second service of the same image (Compose profile `web`), off until you turn it on. Its notifications
+go through the push service of the browser vendor (Apple, Google, Mozilla, Microsoft), so this
+scenario **needs the internet**: outbound HTTPS from the plugin, and a public HTTPS address for the
+plugin. Only the browser can read a notification: the push service carries it encrypted. The
+Android app does not change and stays the reliable way ([chapter 13](docs/manual/13-web-client.md)).
+
+<p align="center"><img src="docs/assets/architecture-web.svg" alt="In your network, Zabbix, the Zweep server and the Android app work as in the self-hosted scenario; the app can also connect over the internet, always straight to your server. The optional Zweep Web plugin receives alarms and the problem list from the server and sends back receipts and acknowledgements. Browsers on iPhone, iPad and computers open the pages of the plugin over HTTPS at its public address; the plugin sends each notification, encrypted, to the push service of the browser vendor (Apple, Google, Mozilla, Microsoft) on the internet, which delivers it to the browser with Web Push." width="100%"></p>
 
 ## Features
 
@@ -70,6 +90,9 @@ escalation goes on with its next step.
   announcements, audit log, backups, HTTPS. Roles admin and manager, optional two-step verification.
 - **HTTPS your way**: Let's Encrypt, company ACME CA, uploaded certificate, self-signed with key
   pinning in the activation QR code, or behind your reverse proxy.
+- **Zweep Web** (optional plugin, off by default): the same screens in a browser for iPhone, iPad and
+  computers, with Web Push notifications, which need the internet; a separate small service next to
+  the server. The Android app remains the reliable way.
 - **App updates from your server**: the signed APK is in the image; phones are offered new versions.
 - **Small and hardened**: one Go binary in a distroless container, non-root, read-only; PostgreSQL is
   the only dependency. Metrics for Prometheus and Zabbix, encrypted daily backups, SBOM.
@@ -159,6 +182,9 @@ linux/arm64). The signed APK is also attached to every [release](https://github.
 | Zabbix server → Zweep (optional) | metrics port, e.g. 9464 | monitoring of Zweep (template in Download) |
 | Zweep → Internet (optional) | 443 | Let's Encrypt or your ACME CA; DNS provider API for DNS-01 |
 | Internet → Zweep (optional) | 80 | Let's Encrypt HTTP-01 challenge only |
+| Browsers → Zweep Web plugin (optional) | 443, public HTTPS address (reverse proxy) | Zweep Web pages and actions |
+| Zweep Web plugin → Zweep (optional) | public port | the plugin's connection to the server |
+| Zweep Web plugin → Internet (optional) | 443 | push services of Apple, Google, Mozilla, Microsoft ([chapter 13.3](docs/manual/13-web-client.md#133-requirements)) |
 
 Phones accept a certificate from a public or company CA, or a self-signed one whose key is pinned in
 the activation QR code; plain HTTP is for labs only ([chapter 5](docs/manual/05-https.md)).
@@ -192,8 +218,8 @@ Do not use this setup for real alarms: no HTTPS, and the PC must stay on.
 ## Documentation
 
 The **[manual](docs/manual/README.md)** covers installation, configuration, HTTPS, Zabbix, users and
-channels, the app, the dashboard, operations, troubleshooting and the reference (command line,
-admin API, webhook, metrics). Security and regulatory mapping (NIS2, ISO/IEC 27001, CRA, AI Act):
+channels, the app, the dashboard, operations, troubleshooting, the reference (command line,
+admin API, webhook, metrics) and the web client. Security and regulatory mapping (NIS2, ISO/IEC 27001, CRA, AI Act):
 [docs/COMPLIANCE.md](docs/COMPLIANCE.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Building from source
@@ -212,7 +238,8 @@ for release builds. An app signed with another key cannot update the official on
 | Path | Content |
 |---|---|
 | `cmd/zweep-server` | command line: serve, healthcheck, admin |
-| `internal/` | server: API, dashboard, delivery, store (PostgreSQL), Zabbix API, HTTPS, backups |
+| `cmd/zweep-web` | the Zweep Web plugin (optional) |
+| `internal/` | server: API, dashboard, delivery, store (PostgreSQL), Zabbix API, HTTPS, backups; `webclient` and `webpush`: the Zweep Web plugin and its push notifications |
 | `zabbix/` | Zabbix media type (script and importable YAML) |
 | `android/` | Android app (Kotlin, Jetpack Compose) |
 | `docs/` | manual and compliance |

@@ -2,6 +2,64 @@
 
 All notable changes to Zweep are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — 2026-10-14
+
+Server, web client and app 1.1.0. **Upgrading**: the server first (new image, `docker compose up -d`;
+the database migrates by itself at the start), then the app on the phones. The app 1.0.3 keeps working
+with the server 1.1.0; the app 1.1.0 needs the server 1.1.0 for **Update** without acknowledgement.
+The web client stays off until you turn it on (chapter 13). Version 1.0.4 was not published: what it
+contained is here.
+
+- **Zweep Web: a web client for iPhone, iPad and computers** (manual, chapter 13). Optional, off by
+  default, a separate service (`zweep-web`, Compose profile `web`) that enrolls a device of platform
+  `web` for each browser and delivers alarms as Web Push notifications. The same screens as the app:
+  Alerts, Problems, detail with Acknowledge, Silence and forced close. Sessions bound to a key of the
+  browser, a six-digit confirmation code before actions, a master switch that revokes every web
+  client. The server knows a notification was *relayed* to the push service; on iPhone it learns
+  that it was shown only when the operator opens it. For the channels chosen in **Channels** (Disaster
+  by default, 3 times, every 10 minutes) an unread notification is repeated. A client not opened for
+  30 days is disconnected, with a warning three days before. A page left open loads the new version by
+  itself after an update of the server. In a storm of alarms a browser gets 10 notifications at once,
+  then one every 10 seconds (Disaster apart: 20, then one every 5 seconds); the others go into the
+  list and a summary notification says how many (**Settings → Web client**). More than three
+  reminders due together become one that says how many alarms are unread. Toward each push service
+  at most 50 notifications a second (`web.push_rate`), Disaster and High first.
+- **App**: the detail of a problem follows the web client. **Actions** (Open in Zabbix, Silence, Force
+  close), each with a confirmation; the forced close is no longer on a long press of the alert.
+  **Update problem**: a message with **Update** (no acknowledgement) or **Acknowledge**, both asking
+  first, offered only with the data of Zabbix on screen and warning when they are old. The History
+  marks the update that carried the acknowledgement; the notification of an acknowledgement says so
+  and by whom. Pull down to refresh in Alerts and Problems. **Vibration per channel** (Settings →
+  Channels): the Zweep rhythm of the sound of the channel, the vibration of the phone, none, or a
+  rhythm tapped by the user; new installations start with the Zweep rhythm, existing channels are
+  not touched. New permission `VIBRATE`, only to try a vibration before choosing it.
+- Security: the name shown with an acknowledgement in a notification (*Acknowledged · name*) is the
+  one the server vouches for, because it sent that acknowledgement to Zabbix itself; it is never read
+  from the first line of the message, which anybody who may comment in Zabbix can write. The reason a
+  device sends with a receipt is kept only as a short code.
+- Monitoring: an optional Zabbix template for the web client, **Zweep Web by HTTP**
+  (`zabbix/template_zweep_web.yaml`, also in **Download** while the web client is on): the plugin
+  answering, the web clients by state. The manual says how to back up what the plugin stores, which
+  is not in the backups of the server (chapters 10.4 and 13.4).
+- Dashboard: in a State column the state is the word alone, centred; a unit of measure (days, minutes,
+  seconds) is written inside its field, so the fields of a page line up; the text of a label sits in the
+  middle of its outline. **Test**: a custom channel is offered in *Shown in channel* only when every
+  recipient has it (refused otherwise: the phones without it would show the message without its badge).
+- App API: `POST /v1/app/acks` accepts `action: "message"` to add a message to a problem without
+  acknowledging it (**Update** in the app and in Zweep Web); the server says so with the feature
+  `ack_message`.
+- **Operator passwords expire**: after `password.max_age` (7 days) and after
+  `password.uses_per_device` logins (3 per device). Devices already activated keep working.
+  ⚠ On upgrade, existing passwords start their time at the upgrade.
+- **Device limits per user**: `devices.max_phones` (1 by default) and, for the web client,
+  `devices.max_web`; a value per user on the user page. Only new activations are refused.
+- Dashboard: **Settings in sections** with a side menu; Devices and the user page show the **last IP
+  address** of a device, a change of address is audited (`device.connected`) and the Audit page
+  filters by address.
+- **Security**: built with Go 1.27.2 and `golang.org/x/net` 0.60.0. `govulncheck` reported twelve
+  vulnerabilities of the Go standard library in the 1.27.0 toolchain used for 1.0.3 (HTTP, HTTP/2,
+  TLS, templates), all fixed in 1.27.2.
+
 ## 1.0.3 — 2026-10-06
 
 - **Fixed: the server could stop answering** (health 503, every request waiting) with three or more

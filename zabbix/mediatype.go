@@ -121,3 +121,9 @@ func YAML(o Options) []byte {
 //
 //go:embed template_zweep.yaml
 var Template []byte
+
+// TemplateWeb is the optional Zabbix template for the web client plugin (that the plugin answers, and
+// the web clients as the server counts them; manual 13.9); written by tools/zbxtemplate/build.py
+//
+//go:embed template_zweep_web.yaml
+var TemplateWeb []byte

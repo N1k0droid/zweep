@@ -230,9 +230,11 @@ class Api(private val link: Link, private val token: String?) {
     suspend fun history(periodSeconds: Int) = call("GET", "/v1/app/problems/history?period=$periodSeconds", null, ProblemHistory.serializer())!!
     suspend fun detail(source: String, eventid: String) = call("GET", "/v1/app/problems/${enc(source)}/${enc(eventid)}", null, Detail.serializer())!!
 
-    suspend fun ack(requestId: String, source: String, eventid: String, text: String) = call(
+    /** action "message" (only with the feature ack_message): the message alone, no acknowledgement */
+    suspend fun ack(requestId: String, source: String, eventid: String, text: String, action: String = "ack") = call(
         "POST", "/v1/app/acks",
-        "{\"request_id\":${quote(requestId)},\"source\":${quote(source)},\"eventid\":${quote(eventid)},\"text\":${quote(text)}}",
+        "{\"request_id\":${quote(requestId)},\"source\":${quote(source)},\"eventid\":${quote(eventid)},\"text\":${quote(text)}" +
+            (if (action == "ack") "" else ",\"action\":${quote(action)}") + "}",
         AckState.serializer(),
     )!!
 

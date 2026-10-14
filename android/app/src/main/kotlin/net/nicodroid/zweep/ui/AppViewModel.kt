@@ -160,7 +160,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val sorted = list.sortedBy { it.ver }
         val first = sorted.first()
         val last = sorted.last()
-        val acked = sorted.any { it.body.contains("\"acknowledged\":true") || it.body.contains("\"action\":\"acknowledged\"") }
+        val acked = sorted.any { it.body.contains("\"acknowledged\":true") || net.nicodroid.zweep.core.ackAuthor(it.body) != null }
         return EventCard(
             serverRef = first.serverRef, serverLabel = label, sid = first.sid, source = first.source, sourceName = first.sourceName,
             eventId = first.eventId, sev = sorted.maxOf { it.sev }, title = first.title, host = first.host, name = first.name.ifEmpty { first.title },
@@ -194,9 +194,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun acksFor(serverRef: Long, source: String, eventid: String): Flow<List<AckEntity>> = db.acks().observeFor(serverRef, source, eventid)
 
-    fun sendAck(serverRef: Long, source: String, eventid: String, text: String) = viewModelScope.launch {
-        Engine.queueAck(serverRef, source, eventid, text)
+    fun sendAck(serverRef: Long, source: String, eventid: String, text: String, action: String = AckEntity.ACTION_ACK) = viewModelScope.launch {
+        Engine.queueAck(serverRef, source, eventid, text, action)
     }
+
+    /** The server takes a message without an acknowledgement (Update): Zweep 1.1 or later */
+    fun canUpdate(serverRef: Long): Boolean = servers.value.any { it.id == serverRef && "ack_message" in it.features.split(',') }
 
     suspend fun detail(serverRef: Long, source: String, eventid: String): Result<Detail> = withContext(Dispatchers.IO) {
         runCatching {
@@ -209,6 +212,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshProblems() = viewModelScope.launch(Dispatchers.IO) {
         db.servers().all().filter { "problems" in it.features.split(',') }.forEach { runCatching { Engine.fetchSnapshot(it) } }
+    }
+
+    /**
+     * Pull to refresh: a server that lost the connection is tried again at once, and the configuration
+     * and the problem list of every server are read again (alarms arrive by themselves on the stream). onDone is called when it is over, never sooner than the
+     * time a person needs to see that something happened.
+     */
+    fun refresh(onDone: () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
+        val start = System.currentTimeMillis()
+        Engine.networkAvailable() // a server that is waiting to try again is tried now
+        db.servers().all().filter { it.enabled }.forEach { s ->
+            runCatching { Engine.refreshConfig(s) }
+            if ("problems" in s.features.split(',')) runCatching { Engine.fetchSnapshot(s) }
+        }
+        delay((600 - (System.currentTimeMillis() - start)).coerceAtLeast(0))
+        withContext(Dispatchers.Main) { onDone() }
     }
 
     fun setDnd(untilMs: Long) = viewModelScope.launch { if (untilMs > 0) Engine.setDnd(untilMs) else Engine.dndEnded() }

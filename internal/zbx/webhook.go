@@ -148,6 +148,9 @@ type Update struct {
 	Action  string `json:"action,omitempty"`
 	Message string `json:"message,omitempty"`
 	User    string `json:"user,omitempty"`
+	// ZweepUser: the Zweep user who made this update from the app or the web client. Never read from
+	// the webhook: the server sets it when the update is one it sent to Zabbix itself (store.Ingest).
+	ZweepUser string `json:"zweep_user,omitempty"`
 }
 
 func invalid(format string, a ...any) error {

@@ -7,6 +7,12 @@ import android.app.Activity
 import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,6 +68,7 @@ import net.nicodroid.zweep.BuildConfig
 import net.nicodroid.zweep.R
 import net.nicodroid.zweep.core.ChannelPrefs
 import net.nicodroid.zweep.core.INFINITE
+import net.nicodroid.zweep.core.Vibrations
 import net.nicodroid.zweep.data.ChannelEntity
 import net.nicodroid.zweep.data.ServerEntity
 import net.nicodroid.zweep.data.Settings
@@ -86,6 +93,9 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
     var maxMenu by remember { mutableStateOf(false) }
     var info by remember { mutableStateOf<String?>(null) }
     var confirmRestore by remember { mutableStateOf<ChannelEntity?>(null) }
+    // Vibration of a channel: the rhythm being tapped, then the choice waiting for a yes
+    var tapFor by remember { mutableStateOf<ChannelEntity?>(null) }
+    var vibrationAsk by remember { mutableStateOf<VibrationChoice?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var resumes by remember { mutableIntStateOf(0) }
     DisposableEffect(lifecycle) {
@@ -153,10 +163,12 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
                 list.forEach { c ->
                     // Read again when the screen comes back from the Android settings of the channel
                     val zweepSound = remember(resumes, c.serverRef, c.id) { Engine.notifier.usesZweepSound(c.serverRef, c.id) }
+                    val vibration = remember(resumes, c.serverRef, c.id) { Engine.notifier.vibrationOf(c.serverRef, c.id) }
                     ChannelRow(c, onChange = vm::updateChannel, onSystem = {
                         ctx.startActivity(Intent(AndroidSettings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(AndroidSettings.EXTRA_APP_PACKAGE, ctx.packageName)
                             .putExtra(AndroidSettings.EXTRA_CHANNEL_ID, Engine.notifier.channelFor(c.serverRef, c.id)))
-                    }, onRestore = if (zweepSound) null else { { confirmRestore = c } })
+                    }, onRestore = if (zweepSound) null else { { confirmRestore = c } },
+                        vibration = vibration, onVibration = { v -> if (v == Notifier.Vibration.CUSTOM) tapFor = c else vibrationAsk = VibrationChoice(c, v, null) })
                 }
                 // Recoveries: their own sound, changeable, with the Zweep sound restorable
                 val resolvedZweep = remember(resumes, s.id) { Engine.notifier.usesZweepSound(s.id, Notifier.RESOLVED) }
@@ -167,6 +179,9 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
                             ctx.startActivity(Intent(AndroidSettings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(AndroidSettings.EXTRA_APP_PACKAGE, ctx.packageName)
                                 .putExtra(AndroidSettings.EXTRA_CHANNEL_ID, Engine.notifier.channelFor(s.id, Notifier.RESOLVED)))
                         }) { Text(stringResource(R.string.channel_sound)) }
+                        val resolved = ChannelEntity(s.id, Notifier.RESOLVED, "resolved", Notifier.RESOLVED)
+                        val vibration = remember(resumes, s.id) { Engine.notifier.vibrationOf(s.id, Notifier.RESOLVED) }
+                        VibrationPicker(vibration) { v -> if (v == Notifier.Vibration.CUSTOM) tapFor = resolved else vibrationAsk = VibrationChoice(resolved, v, null) }
                         if (!resolvedZweep) TextButton({ vm.restoreResolvedSound(s.id) }) { Text(stringResource(R.string.sound_restore)) }
                     }
                 }
@@ -222,8 +237,8 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
 
             SectionDivider()
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally)) {
-                OutlinedButton({ confirmQuit = true }) { Text(stringResource(R.string.action_quit), color = Zw.errorText) }
-                OutlinedButton(onAbout) { Text(stringResource(R.string.about_title)) }
+                OutlinedButton({ confirmQuit = true }, shape = Zw.control) { Text(stringResource(R.string.action_quit), color = Zw.errorText) }
+                OutlinedButton(onAbout, shape = Zw.control) { Text(stringResource(R.string.about_title)) }
             }
             Text(stringResource(R.string.independent_notice), color = Zw.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(16.dp))
@@ -243,6 +258,31 @@ fun SettingsScreen(vm: AppViewModel, onAddServer: () -> Unit, onPermissions: () 
             text = { Text(stringResource(R.string.logout_confirm, s.label)) },
             confirmButton = { TextButton({ confirmLogout = null; vm.logout(s.id) }) { Text(stringResource(R.string.action_logout), color = Zw.errorText) } },
             dismissButton = { TextButton({ confirmLogout = null }) { Text(stringResource(R.string.action_cancel)) } })
+    }
+    tapFor?.let { c ->
+        TapRhythmDialog(onDismiss = { tapFor = null }) { pattern -> tapFor = null; vibrationAsk = VibrationChoice(c, Notifier.Vibration.CUSTOM, pattern) }
+    }
+    vibrationAsk?.let { ask ->
+        // What the channel will vibrate like: it can be felt before saying yes
+        val pattern = when (ask.vibration) {
+            Notifier.Vibration.ZWEEP -> Vibrations.zweep(ask.channel.id)
+            Notifier.Vibration.CUSTOM -> ask.pattern
+            else -> null
+        }
+        AlertDialog(onDismissRequest = { vibrationAsk = null },
+            title = { Text(stringResource(R.string.vib_title) + ": " + vibrationName(ask.vibration)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.vib_confirm))
+                    if (pattern != null) TextButton({ vibrate(ctx, pattern) }) { Text(stringResource(R.string.action_try)) }
+                }
+            },
+            confirmButton = { TextButton({
+                Engine.notifier.setVibration(ask.channel.serverRef, ask.channel, ask.vibration, ask.pattern)
+                vibrationAsk = null
+                resumes++
+            }) { Text(stringResource(R.string.action_continue)) } },
+            dismissButton = { TextButton({ vibrationAsk = null }) { Text(stringResource(R.string.action_cancel)) } })
     }
     confirmRestore?.let { c ->
         AlertDialog(onDismissRequest = { confirmRestore = null },
@@ -297,13 +337,98 @@ private fun ServerCard(s: ServerEntity, state: ConnState?, detail: String?, onTe
             Text("", fontSize = 12.sp)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            OutlinedButton(onTest, Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.action_test_alarm)) }
+            OutlinedButton(onTest, Modifier.padding(top = 8.dp), shape = Zw.control) { Text(stringResource(R.string.action_test_alarm)) }
         }
     }
 }
 
+/** A vibration the user chose for a channel, waiting for the confirmation ([pattern]: the tapped one) */
+private class VibrationChoice(val channel: ChannelEntity, val vibration: Notifier.Vibration, val pattern: LongArray?)
+
 @Composable
-private fun ChannelRow(c: ChannelEntity, onChange: (ChannelEntity) -> Unit, onSystem: () -> Unit, onRestore: (() -> Unit)? = null) {
+private fun vibrationName(v: Notifier.Vibration) = stringResource(
+    when (v) {
+        Notifier.Vibration.ZWEEP -> R.string.vib_zweep
+        Notifier.Vibration.PHONE -> R.string.vib_phone
+        Notifier.Vibration.OFF -> R.string.vib_off
+        Notifier.Vibration.CUSTOM -> R.string.vib_custom
+    },
+)
+
+/** Lets the phone vibrate once with a pattern, to feel it before it is chosen */
+private fun vibrate(ctx: android.content.Context, pattern: LongArray) {
+    // As a notification, so that it follows the same settings of the phone as the real ones
+    val attrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build()
+    @Suppress("DEPRECATION")
+    runCatching { ctx.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1), attrs) }
+}
+
+/** The vibration of a channel and the menu to change it */
+@Composable
+private fun VibrationPicker(current: Notifier.Vibration, onPick: (Notifier.Vibration) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Column {
+        TextButton({ menu = true }) { Text(stringResource(R.string.channel_vibration, vibrationName(current))) }
+        DropdownMenu(menu, { menu = false }) {
+            listOf(Notifier.Vibration.ZWEEP, Notifier.Vibration.PHONE, Notifier.Vibration.OFF).forEach { v ->
+                DropdownMenuItem({ Text(vibrationName(v)) }, { menu = false; if (v != current) onPick(v) })
+            }
+            DropdownMenuItem({ Text(stringResource(R.string.vib_custom) + "…") }, { menu = false; onPick(Notifier.Vibration.CUSTOM) })
+        }
+    }
+}
+
+/**
+ * A rhythm tapped with a finger: how long each tap is held and the pauses between them become the
+ * vibration of a channel. It can be felt, tapped again, then saved.
+ */
+@Composable
+private fun TapRhythmDialog(onDismiss: () -> Unit, onSave: (LongArray) -> Unit) {
+    val ctx = LocalContext.current
+    var taps by remember { mutableStateOf(listOf<Pair<Long, Long>>()) }
+    var pressed by remember { mutableStateOf(false) }
+    val pattern = Vibrations.fromTaps(taps)
+    AlertDialog(onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.vib_tap_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.vib_tap_hint), fontSize = 13.sp)
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxWidth().height(120.dp)
+                        .background(if (pressed) Zw.accent.copy(alpha = 0.35f) else Zw.background, Zw.control)
+                        .border(1.dp, Zw.outlineStrong, Zw.control)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                pressed = true
+                                val up = waitForUpOrCancellation()
+                                pressed = false
+                                if (taps.size < Vibrations.MAX_TAPS) taps = taps + (down.uptimeMillis to (up?.uptimeMillis ?: (down.uptimeMillis + 100)))
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (pattern == null) stringResource(R.string.vib_tap_here)
+                        else pluralStringResource(R.plurals.vib_taps, pattern.size / 2, pattern.size / 2) + " · " + "%.1f s".format(Vibrations.length(pattern) / 1000f),
+                        color = Zw.textBody,
+                    )
+                }
+                Row {
+                    TextButton(enabled = pattern != null, onClick = { pattern?.let { vibrate(ctx, it) } }) { Text(stringResource(R.string.action_try)) }
+                    TextButton(enabled = taps.isNotEmpty(), onClick = { taps = emptyList() }) { Text(stringResource(R.string.action_clear)) }
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = pattern != null, onClick = { pattern?.let(onSave) }) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.action_cancel)) } })
+}
+
+@Composable
+private fun ChannelRow(
+    c: ChannelEntity, onChange: (ChannelEntity) -> Unit, onSystem: () -> Unit, onRestore: (() -> Unit)? = null,
+    vibration: Notifier.Vibration = Notifier.Vibration.PHONE, onVibration: (Notifier.Vibration) -> Unit = {},
+) {
     var remMenu by remember { mutableStateOf(false) }
     var intMenu by remember { mutableStateOf(false) }
     val sev = Notifier.severityOf(c.id)
@@ -336,8 +461,9 @@ private fun ChannelRow(c: ChannelEntity, onChange: (ChannelEntity) -> Unit, onSy
             }
             TextButton(onSystem) { Text(stringResource(R.string.channel_sound)) }
         }
-        if (onRestore != null) {
-            TextButton(onRestore) { Text(stringResource(R.string.sound_restore)) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            VibrationPicker(vibration, onVibration)
+            if (onRestore != null) TextButton(onRestore) { Text(stringResource(R.string.sound_restore)) }
         }
     }
 }

@@ -46,6 +46,8 @@ func (s *Service) registerAdmin() {
 	m.HandleFunc("PUT /v1/admin/channels/{id}", s.adminUpdateChannel)
 	m.HandleFunc("DELETE /v1/admin/channels/{id}", s.adminDeleteChannel)
 	m.HandleFunc("PUT /v1/admin/channels/{id}/users", s.adminSetChannelUsers)
+	m.HandleFunc("GET /v1/admin/web/repeats", s.adminGetWebRepeats)
+	m.HandleFunc("PUT /v1/admin/web/repeats", s.adminSetWebRepeats)
 	m.HandleFunc("GET /v1/admin/alerts", s.adminOpenAlerts)
 	m.HandleFunc("POST /v1/admin/alerts/close", s.adminCloseAlert)
 	s.registerAdminZabbix()
@@ -384,6 +386,19 @@ func (s *Service) adminSetSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.hub.ReloadSettings(r.Context())
 	s.adminLog(r, "admin.setting.update", key, map[string]any{"old": old, "new": updated})
+	if key == "web.enabled" && updated == false {
+		// Turning the web client off revokes its devices at once; turning it on again does not bring
+		// them back: the users activate again
+		ids, err := s.st.RevokeWebDevices(r.Context(), requestInfo(r).Admin, "web client disabled")
+		if err != nil {
+			storeError(w, err)
+			return
+		}
+		for _, id := range ids {
+			s.hub.Kick(id, delivery.NoticeWebDisabled, "the web client was disabled by the administrator")
+		}
+		s.adminLog(r, "admin.web.disabled", "", map[string]any{"devices_revoked": len(ids)})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"key": key, "value": updated})
 }
 
@@ -561,4 +576,38 @@ func (s *Service) notifyChannelUsers(r *http.Request, id string) {
 	for _, u := range users {
 		s.hub.Notify(u, delivery.NoticeConfigChanged, "channels")
 	}
+}
+
+// adminGetWebRepeats lists, per channel, how many times an unread notification is sent again to a web client
+func (s *Service) adminGetWebRepeats(w http.ResponseWriter, r *http.Request) {
+	reps, err := s.st.WebRepeats(r.Context())
+	if err != nil {
+		storeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channels": reps})
+}
+
+// adminSetWebRepeats changes how the given channels repeat: how many times (0: never, at most 20) and
+// how often (0: the interval of the settings)
+func (s *Service) adminSetWebRepeats(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Channels map[string]store.WebRepeat `json:"channels"`
+	}
+	if err := readJSON(r, &in, 16<<10); err != nil || len(in.Channels) == 0 {
+		writeError(w, errBadJSON)
+		return
+	}
+	for _, c := range in.Channels {
+		if c.Repeats < 0 || c.Repeats > 20 || (c.EveryS != 0 && (c.EveryS < 60 || c.EveryS > 86400)) {
+			writeError(w, errorf(http.StatusBadRequest, 40026, "invalid_repeats", "repeats are between 0 (never) and 20; every_s between 60 and 86400, or 0 for the interval of the settings"))
+			return
+		}
+	}
+	if err := s.st.SetWebRepeats(r.Context(), in.Channels); err != nil {
+		storeError(w, err)
+		return
+	}
+	s.adminLog(r, "admin.web.repeats", "", map[string]any{"channels": in.Channels})
+	w.WriteHeader(http.StatusNoContent)
 }

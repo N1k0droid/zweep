@@ -266,4 +266,35 @@
     <string name="about_author">Autore</string>
     <string name="about_author_text">Zweep è ideato e sviluppato da:</string>
     <string name="about_star">Zweep ti è utile?\nUna ⭐ su GitHub e un follow aiutano il progetto a crescere.</string>
+    <string name="detail_actions">Azioni</string>
+    <string name="open_zabbix_title">Apri in Zabbix</string>
+    <string name="open_zabbix_text">Aprire questo problema nel frontend di Zabbix? Si apre fuori da Zweep e chiede il tuo accesso a Zabbix.</string>
+    <string name="action_open">Apri</string>
+    <string name="silence_confirm">Nessuna altra notifica per questo allarme su questo telefono: niente ripetizioni né promemoria; aggiornamenti e rientro arrivano senza suono. Resta nell\'elenco e puoi riattivarlo. Gli altri allarmi non cambiano.</string>
+    <string name="unsilence_confirm">Tornare a notificare questo allarme su questo telefono?</string>
+    <string name="update_need_data">Per aggiornare o prendere in carico il problema servono i dati di Zabbix: riprova quando risponde.</string>
+    <string name="detail_stale">Zabbix non risponde: dati fermi alle %1$s. Aggiornamenti successivi, compreso un Acknowledge di un collega, potrebbero non vedersi.</string>
+    <string name="ack_confirm">Inviare questo Acknowledge a Zabbix?</string>
+    <string name="ack_confirm_already">Il problema risulta già Acknowledged: Zabbix tiene un solo Acknowledge per problema, quindi viene aggiunto il tuo messaggio. Vuoi continuare?</string>
+    <string name="update_confirm">Nessun Acknowledge: il problema resta non preso in carico. Vuoi continuare?</string>
+    <string name="update_confirm_acked">Aggiungere questo messaggio al problema?</string>
+    <string name="ack_confirmed_message">✓ Messaggio aggiunto in Zabbix</string>
+    <string name="action_yes">Sì</string>
+    <string name="action_no">No</string>
+    <string name="channel_vibration">Vibrazione: %1$s</string>
+    <string name="vib_title">Vibrazione</string>
+    <string name="vib_phone">Predefinita del telefono</string>
+    <string name="vib_off">Spenta</string>
+    <string name="vib_custom">Personalizzata</string>
+    <string name="vib_confirm">Android non permette di cambiare la vibrazione di un canale, quindi il canale viene creato di nuovo. Suono, importanza e luci restano; altre modifiche fatte a mano nelle impostazioni Android del canale possono tornare ai valori predefiniti.</string>
+    <string name="vib_tap_title">Vibrazione personalizzata</string>
+    <string name="vib_tap_hint">Batti il ritmo nel riquadro: vengono registrati quanto tieni premuto ogni tocco e le pause tra uno e l\'altro (al massimo 3 secondi e 10 tocchi).</string>
+    <string name="vib_tap_here">Tocca qui</string>
+    <plurals name="vib_taps">
+        <item quantity="one">%1$d tocco</item>
+        <item quantity="other">%1$d tocchi</item>
+    </plurals>
+    <string name="action_try">Prova</string>
+    <string name="action_clear">Cancella</string>
+    <string name="action_save">Salva</string>
 </resources>

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 545" width="1060" height="545" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>How Zweep works with Zweep Web</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <style>
+      .box { fill: #21262d; stroke: #8b949e; stroke-width: 1.5; }
+      .opt { stroke-dasharray: 6 4; }
+      .name { fill: #f0f6fc; font-size: 16px; font-weight: 600; text-anchor: middle; }
+      .sub { fill: #c9d1d9; font-size: 13px; text-anchor: middle; }
+      .flow { stroke: #8b949e; stroke-width: 1.5; fill: none; }
+      .label { fill: #8b949e; font-size: 13px; text-anchor: middle; }
+      .zone { fill: none; stroke: #8b949e; stroke-width: 1; stroke-dasharray: 3 4; }
+      .zname { fill: #8b949e; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+
+  <!-- Zones: your network (everything but the push services), internet -->
+  <rect class="zone" x="6" y="6" width="1048" height="372" rx="12"/>
+  <text class="zname" x="24" y="30">YOUR NETWORK</text>
+  <rect class="zone" x="6" y="394" width="1048" height="145" rx="12"/>
+  <text class="zname" x="24" y="418">INTERNET · only for the notifications of Zweep Web</text>
+
+  <!-- Zabbix -->
+  <rect class="box" x="30" y="60" width="200" height="80" rx="8"/>
+  <text class="name" x="130" y="95">Zabbix 7.0+</text>
+  <text class="sub" x="130" y="117">actions and escalation</text>
+
+  <!-- Zweep server -->
+  <rect class="box" x="430" y="60" width="200" height="80" rx="8"/>
+  <text class="name" x="530" y="95">Zweep server</text>
+  <text class="sub" x="530" y="117">dashboard, PostgreSQL</text>
+
+  <!-- Android app -->
+  <rect class="box" x="830" y="60" width="200" height="80" rx="8"/>
+  <text class="name" x="930" y="95">Android app *</text>
+  <text class="sub" x="930" y="117">operators' phones</text>
+  <text class="label" x="930" y="166">* also over the internet,</text>
+  <text class="label" x="930" y="182">always straight to your server</text>
+
+  <!-- Zweep Web plugin (optional) -->
+  <rect class="box opt" x="430" y="250" width="200" height="80" rx="8"/>
+  <text class="name" x="530" y="285">Zweep Web plugin</text>
+  <text class="sub" x="530" y="307">optional · same image</text>
+
+  <!-- Push services -->
+  <rect class="box" x="410" y="440" width="240" height="80" rx="8"/>
+  <text class="name" x="530" y="475">Push services</text>
+  <text class="sub" x="530" y="497">Apple, Google, Mozilla, Microsoft</text>
+
+  <!-- Browsers -->
+  <rect class="box" x="830" y="440" width="200" height="80" rx="8"/>
+  <text class="name" x="930" y="475">Browsers</text>
+  <text class="sub" x="930" y="497">iPhone, iPad, computers</text>
+
+  <!-- Zabbix <-> Zweep -->
+  <line class="flow" x1="232" y1="88" x2="428" y2="88" marker-end="url(#a)"/>
+  <text class="label" x="330" y="78">media type webhook</text>
+  <line class="flow" x1="428" y1="114" x2="232" y2="114" marker-end="url(#a)"/>
+  <text class="label" x="330" y="134">API: problems,</text>
+  <text class="label" x="330" y="150">acknowledgements</text>
+
+  <!-- Zweep <-> app -->
+  <line class="flow" x1="632" y1="88" x2="828" y2="88" marker-end="url(#a)"/>
+  <text class="label" x="730" y="62">WebSocket:</text>
+  <text class="label" x="730" y="78">alarms, problem list</text>
+  <line class="flow" x1="828" y1="114" x2="632" y2="114" marker-end="url(#a)"/>
+  <text class="label" x="730" y="134">receipts,</text>
+  <text class="label" x="730" y="150">acknowledgements</text>
+
+  <!-- Zweep <-> plugin: vertical, labels at the side -->
+  <line class="flow" x1="505" y1="142" x2="505" y2="248" marker-end="url(#a)"/>
+  <text class="label" x="497" y="192" style="text-anchor:end">alarms,</text>
+  <text class="label" x="497" y="208" style="text-anchor:end">problem list</text>
+  <line class="flow" x1="555" y1="248" x2="555" y2="142" marker-end="url(#a)"/>
+  <text class="label" x="563" y="192" style="text-anchor:start">receipts,</text>
+  <text class="label" x="563" y="208" style="text-anchor:start">acknowledgements</text>
+
+  <!-- plugin -> push services -> browsers -->
+  <line class="flow" x1="530" y1="332" x2="530" y2="438" marker-end="url(#a)"/>
+  <text class="label" x="522" y="352" style="text-anchor:end">encrypted</text>
+  <text class="label" x="522" y="368" style="text-anchor:end">notification</text>
+  <line class="flow" x1="652" y1="480" x2="828" y2="480" marker-end="url(#a)"/>
+  <text class="label" x="740" y="470">Web Push</text>
+
+  <!-- browsers -> plugin: pages and actions over HTTPS -->
+  <path class="flow" d="M990,438 V290 H632" marker-end="url(#a)"/>
+  <text class="label" x="811" y="280">HTTPS: pages, acknowledgements</text>
+  <text class="label" x="811" y="308">public address of the plugin</text>
+</svg>

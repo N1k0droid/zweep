@@ -89,6 +89,19 @@ func newCoreEnv(t *testing.T, mutate func(*config.Config)) *coreEnv {
 	}
 	s := newTestServer(t, cfg)
 	addUser(t, s, "admin", "admin-pass", store.RoleAdmin)
+	// The tests give a user as many simulated phones and password logins as they need; the tests of
+	// the enrollment rules set the limits themselves
+	for _, key := range []string{"devices.max_phones", "password.uses_per_device"} {
+		_, _, err := s.store.SetSetting(context.Background(), key, []byte("0"), "test")
+		require.Nil(t, err)
+	}
+	// A simulated browser has no key: the tests of the binding ask for one themselves
+	// nor a push subscription at the activation: the tests of those rules ask for them themselves
+	for _, key := range []string{"web.require_bound", "web.require_notifications"} {
+		_, _, err := s.store.SetSetting(context.Background(), key, []byte("false"), "test")
+		require.Nil(t, err)
+	}
+	require.Nil(t, s.hub.ReloadSettings(context.Background()))
 	ts := httptest.NewServer(testHandler(s))
 	t.Cleanup(ts.Close)
 	return &coreEnv{t: t, s: s, http: ts, url: ts.URL, admin: map[string]string{"Authorization": basicAuth("admin", "admin-pass")}}
@@ -488,7 +501,8 @@ func TestCore_HeartbeatUnreachable(t *testing.T) {
 		devs, _ := e.s.store.Devices(context.Background(), "mario")
 		return devs[0].State == store.DeviceOnline
 	}))
-	require.Equal(t, 1, e.auditCount("device.reachable"))
+	// The audit line is written right after the state
+	require.True(t, zwclient.WaitFor(5*time.Second, func() bool { return e.auditCount("device.reachable") == 1 }))
 
 	// "Chiudi app": bye user_quit leaves the device stopped_by_user, never unreachable
 	require.Nil(t, dev.Send(map[string]any{"type": "bye", "reason": "user_quit"}))

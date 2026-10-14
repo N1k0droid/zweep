@@ -22,6 +22,7 @@ func (d *Dashboard) downloadRoutes() {
 	d.mux.HandleFunc("GET "+prefix+"/downloads/media_zweep.yaml", d.page(anyRole, d.downloadMediaType))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/zweep-mediatype.js", d.page(anyRole, d.downloadScript))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/template_zweep.yaml", d.page(anyRole, d.downloadTemplate))
+	d.mux.HandleFunc("GET "+prefix+"/downloads/template_zweep_web.yaml", d.page(anyRole, d.downloadTemplateWeb))
 	d.mux.HandleFunc("GET "+prefix+"/downloads/zweep.apk", d.page(anyRole, d.downloadAPK))
 	d.mux.HandleFunc("POST "+prefix+"/downloads/apk/rescan", d.page(adminOnly, d.apkRescan))
 }
@@ -32,7 +33,8 @@ func (d *Dashboard) downloads(w http.ResponseWriter, r *http.Request) {
 		d.unavailable(w, r, err)
 		return
 	}
-	data := map[string]any{"Sources": sources, "URLs": d.serviceURLs(), "Source": r.URL.Query().Get("source")}
+	// The template of the web client plugin is offered only while the web client is on
+	data := map[string]any{"Sources": sources, "URLs": d.serviceURLs(), "Source": r.URL.Query().Get("source"), "Web": d.Hub.Settings().WebClient}
 	if err := d.apkData(r, data); err != nil {
 		d.unavailable(w, r, err)
 		return
@@ -70,6 +72,18 @@ func (d *Dashboard) downloadTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="template_zweep.yaml"`)
 	_, _ = w.Write(zabbix.Template)
+}
+
+// downloadTemplateWeb serves the optional Zabbix template for the web client plugin; while the web
+// client is off nothing of it shows in the dashboard
+func (d *Dashboard) downloadTemplateWeb(w http.ResponseWriter, r *http.Request) {
+	if !d.Hub.Settings().WebClient {
+		d.render(w, r, http.StatusNotFound, "error", map[string]any{"Message": "err.not_found"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="template_zweep_web.yaml"`)
+	_, _ = w.Write(zabbix.TemplateWeb)
 }
 
 func (d *Dashboard) downloadScript(w http.ResponseWriter, r *http.Request) {

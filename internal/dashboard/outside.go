@@ -119,7 +119,7 @@ func (d *Dashboard) danger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(r.PostFormValue("confirm")) != word {
-		http.Redirect(w, r, prefix+"/settings?danger="+url.QueryEscape(op)+"#danger", http.StatusSeeOther)
+		http.Redirect(w, r, prefix+"/settings?s=danger&danger="+url.QueryEscape(op)+"#danger", http.StatusSeeOther)
 		return
 	}
 	ctx := r.Context()
@@ -135,9 +135,9 @@ func (d *Dashboard) danger(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		d.audit(r, "admin.danger."+op, "", "ok", map[string]any{"kinds": kinds})
-		http.Redirect(w, r, prefix+"/settings?done=danger_seen#danger", http.StatusSeeOther)
+		http.Redirect(w, r, prefix+"/settings?s=danger&done=danger_seen#danger", http.StatusSeeOther)
 	case "revoke_devices":
-		devs, err := d.Store.Devices(ctx, "")
+		devs, err := d.deviceList(ctx, "")
 		if err != nil {
 			d.unavailable(w, r, err)
 			return
@@ -155,7 +155,7 @@ func (d *Dashboard) danger(w http.ResponseWriter, r *http.Request) {
 			n++
 		}
 		d.audit(r, "admin.danger.revoke_devices", "", "ok", map[string]any{"devices": n})
-		http.Redirect(w, r, prefix+"/settings?done=danger_revoked#danger", http.StatusSeeOther)
+		http.Redirect(w, r, prefix+"/settings?s=danger&done=danger_revoked#danger", http.StatusSeeOther)
 	case "rotate_secrets":
 		sources, err := d.Store.Sources(ctx)
 		if err != nil {

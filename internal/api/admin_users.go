@@ -20,6 +20,7 @@ func (s *Service) registerAdminUsers() {
 	s.mux.HandleFunc("GET /v1/admin/users/{username}", s.adminGetUser)
 	s.mux.HandleFunc("PUT /v1/admin/users/{username}", s.adminUpdateUser)
 	s.mux.HandleFunc("PUT /v1/admin/users/{username}/password", s.adminSetPassword)
+	s.mux.HandleFunc("PUT /v1/admin/users/{username}/limits", s.adminSetLimits)
 	s.mux.HandleFunc("DELETE /v1/admin/users/{username}", s.adminDeleteUser)
 }
 
@@ -68,6 +69,38 @@ func (s *Service) hashPassword(r *http.Request, username, role string, password 
 		return "", errUnavailable
 	}
 	return h, nil
+}
+
+// adminSetLimits changes the devices a user may have and whether it may use the web client
+func (s *Service) adminSetLimits(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		MaxPhones  *int `json:"max_phones"` // null: the default of the settings
+		MaxWeb     *int `json:"max_web"`
+		WebEnabled bool `json:"web_enabled"`
+		// WebRequireBound: this user's web sessions must be bound to the browser (the setting may ask it of everyone)
+		WebRequireBound bool `json:"web_require_bound"`
+	}
+	if err := readJSON(r, &in, 1<<10); err != nil {
+		writeError(w, errBadJSON)
+		return
+	}
+	for _, n := range []*int{in.MaxPhones, in.MaxWeb} {
+		if n != nil && (*n < 0 || *n > 100) {
+			writeError(w, errorf(http.StatusBadRequest, 40025, "invalid_limit", "a limit is between 0 (no limit) and 100"))
+			return
+		}
+	}
+	u, revoked, err := s.st.SetUserLimits(r.Context(), r.PathValue("username"), in.MaxPhones, in.MaxWeb, in.WebEnabled, in.WebRequireBound, requestInfo(r).Admin)
+	if err != nil {
+		storeError(w, err)
+		return
+	}
+	for _, id := range revoked {
+		s.hub.Kick(id, delivery.NoticeTokenRevoked, "the web client is no longer allowed for this user")
+	}
+	s.adminLog(r, "admin.user.limits", u.Username, map[string]any{"max_phones": in.MaxPhones, "max_web": in.MaxWeb,
+		"web_enabled": in.WebEnabled, "web_require_bound": in.WebRequireBound, "devices_revoked": len(revoked)})
+	writeJSON(w, http.StatusOK, u)
 }
 
 func (s *Service) adminListUsers(w http.ResponseWriter, r *http.Request) {

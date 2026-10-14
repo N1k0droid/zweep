@@ -214,6 +214,12 @@ func (h *Hub) UpdateGauges(ctx context.Context) {
 		store.DeviceStoppedByUser, store.DeviceLoggedOut, store.DeviceRevoked} {
 		metrics.Devices.WithLabelValues(state).Set(float64(st.DevicesByState[state]))
 	}
+	metrics.WebDevices.Reset()
+	if h.Settings().WebClient {
+		for _, state := range []string{store.DeviceEnrolled, store.DeviceOnline, store.DeviceOffline, store.DeviceUnreachable, store.DeviceRevoked} {
+			metrics.WebDevices.WithLabelValues(state).Set(float64(st.WebByState[state]))
+		}
+	}
 }
 
 // PurgeOnce runs the retention job once

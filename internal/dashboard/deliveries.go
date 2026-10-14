@@ -176,11 +176,15 @@ func (d *Dashboard) deliveries(w http.ResponseWriter, r *http.Request) {
 		data["Next"] = f.link(f.Page + 1)
 	}
 	stateLinks := map[string]string{}
-	for _, st := range []string{"", "queued", "sent", "delivered", "shown", "not_shown", "unconfirmed"} {
+	states := []string{"queued", "sent", "delivered", "shown", "not_shown", "unconfirmed"}
+	if d.Hub.Settings().WebClient {
+		states = []string{"queued", "sent", "relayed", "delivered", "shown", "not_shown", "unconfirmed"} // relayed exists for web devices only
+	}
+	for _, st := range append([]string{""}, states...) {
 		g := f
 		g.State, g.Page = st, 1
 		stateLinks[st] = g.link(1)
 	}
-	data["StateLinks"] = stateLinks
+	data["StateLinks"], data["States"] = stateLinks, states
 	d.render(w, r, http.StatusOK, "deliveries", data)
 }
