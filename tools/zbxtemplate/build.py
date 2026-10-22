@@ -162,6 +162,13 @@ MW = [
     ('zweep.web.devices.offline', 'Web clients disconnected', 'zweep_web_devices{state="offline"}', 'value', '', '', 'optional'),
     ('zweep.web.devices.unreachable', 'Web clients unreachable', 'zweep_web_devices{state="unreachable"}', 'value', '',
      'Web clients without contact for longer than the heartbeat threshold: the plugin does not hold their connection.', 'optional'),
+    # What the plugin reports every minute about its notifications (0 without a recent report)
+    ('zweep.web.push.sent', 'Web notifications accepted by the push services', 'zweep_web_push_sent', 'sum', '',
+     'Notifications the push services (Apple, Google, Mozilla, Microsoft) accepted from the plugin in its last minute.', ''),
+    ('zweep.web.push.failed', 'Web notifications not delivered to the push services', 'zweep_web_push_failed', 'sum', '',
+     'Notifications of the plugin that did not reach a push service in its last minute (no answer, errors 5xx, too many requests).', ''),
+    ('zweep.web.push.held', 'Web notifications held by the sending limit', 'zweep_web_push_held', 'value', '',
+     'Alarms the plugin kept out of the notifications in its last minute because of the sending limit (a storm of alarms). -1 without a recent report.', 'optional'),
 ]
 
 TRW = [
@@ -173,6 +180,9 @@ TRW = [
     ('Zweep Web: no web client connected', 'WARNING',
      'max(/T/zweep.web.devices.online,10m)=0 and min(/T/zweep.web.devices.unreachable,10m)>0',
      'There are web clients and none is connected: the plugin does not reach Zweep (address, allow-list of the plugin, Zweep down).'),
+    ('Zweep Web: push services not reachable', 'WARNING',
+     'min(/T/zweep.web.push.failed,5m)>0 and max(/T/zweep.web.push.sent,5m)=0',
+     'For 5 minutes the plugin delivered no notification to the push services and some failed: check its outbound HTTPS (port 443) to the push services (manual 13.3).'),
     ('Zweep Web: the web client is turned off', 'INFO', 'max(/T/zweep.web.devices.online,10m)<0',
      'Zweep exports nothing about web clients: the web client is turned off in the settings, or the metrics listener is not reachable.'),
 ]
@@ -304,7 +314,7 @@ def web():
     y.add(3, 'template: ' + q(TW))
     y.add(3, 'name: ' + q(TW))
     y.add(3, 'description: ' + q(
-        'Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, and the web clients as the '
+        'Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, its notifications toward the push services, and the web clients as the '
         'Zweep server sees them (manual, chapters 10.1 and 13.9). Optional: link it only where the web client is used.\n'
         'Set the macros {$ZWEEP.WEB.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an '
         'action that does NOT use the Zweep media type.'))

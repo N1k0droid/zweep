@@ -149,16 +149,21 @@ func (s *Store) CreateChannel(ctx context.Context, c ChannelRow, by string) erro
 	return err
 }
 
-// UpdateChannel updates a channel; severity channels can only be enabled or disabled
+// UpdateChannel updates a channel; severity channels can only be enabled or disabled, the service
+// channel also gets a color
 func (s *Store) UpdateChannel(ctx context.Context, c ChannelRow, by string) error {
 	var kind string
 	if err := s.Pool.QueryRow(ctx, `SELECT kind FROM zw_channel WHERE id = $1`, c.ID).Scan(&kind); err != nil {
 		return notFound(err)
 	}
 	var err error
-	if kind == "severity" {
+	switch kind {
+	case "severity":
 		_, err = s.Pool.Exec(ctx, `UPDATE zw_channel SET enabled = $2, updated_at = now(), updated_by = $3 WHERE id = $1`, c.ID, c.Enabled, by)
-	} else {
+	case "system":
+		// The service channel keeps its name and has no rule: its alerts come from Zweep, not from Zabbix
+		_, err = s.Pool.Exec(ctx, `UPDATE zw_channel SET enabled = $2, updated_at = now(), updated_by = $3, color = $4 WHERE id = $1`, c.ID, c.Enabled, by, nullable(c.Color))
+	default:
 		_, err = s.Pool.Exec(ctx, `
 			UPDATE zw_channel SET name = $2, description = $3, enabled = $4, priority = $5, rule = $6, updated_at = now(), updated_by = $7, color = $8
 			WHERE id = $1`, c.ID, c.Name, nullable(c.Description), c.Enabled, c.Priority, mustJSON(c.Rule), by, nullable(c.Color))
@@ -175,7 +180,8 @@ func (s *Store) DeleteChannel(ctx context.Context, id string) error {
 	return err
 }
 
-// SetChannelUsers replaces the users a custom channel is assigned to; it returns the affected user ids
+// SetChannelUsers replaces the users a custom channel or the service channel is assigned to; it returns
+// the affected user ids
 func (s *Store) SetChannelUsers(ctx context.Context, id string, usernames []string) ([]string, error) {
 	var affected []string
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
@@ -183,7 +189,7 @@ func (s *Store) SetChannelUsers(ctx context.Context, id string, usernames []stri
 		if err := tx.QueryRow(ctx, `SELECT kind FROM zw_channel WHERE id = $1 FOR UPDATE`, id).Scan(&kind); err != nil {
 			return notFound(err)
 		}
-		if kind != "custom" {
+		if kind != "custom" && kind != "system" {
 			return ErrConflict
 		}
 		rows, err := tx.Query(ctx, `DELETE FROM zw_channel_assignment WHERE channel_id = $1 RETURNING user_id`, id)
@@ -227,7 +233,7 @@ func (s *Store) UserIDsOfChannel(ctx context.Context, id string) ([]string, erro
 	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
-// SetUserChannels assigns an operator to exactly the given custom channels (dashboard)
+// SetUserChannels assigns an operator to exactly the given custom channels and service channel (dashboard)
 func (s *Store) SetUserChannels(ctx context.Context, userID string, channelIDs []string) error {
 	if channelIDs == nil {
 		channelIDs = []string{}
@@ -238,12 +244,12 @@ func (s *Store) SetUserChannels(ctx context.Context, userID string, channelIDs [
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO zw_channel_assignment (channel_id, user_id)
-			SELECT c.id, $1 FROM zw_channel c WHERE c.id = ANY($2::text[]) AND c.kind = 'custom'
+			SELECT c.id, $1 FROM zw_channel c WHERE c.id = ANY($2::text[]) AND c.kind IN ('custom', 'system')
 			ON CONFLICT DO NOTHING`, userID, channelIDs); err != nil {
 			return err
 		}
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM zw_channel WHERE id = ANY($1::text[]) AND kind = 'custom'`, channelIDs).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM zw_channel WHERE id = ANY($1::text[]) AND kind IN ('custom', 'system')`, channelIDs).Scan(&n); err != nil {
 			return err
 		}
 		if n != len(channelIDs) {

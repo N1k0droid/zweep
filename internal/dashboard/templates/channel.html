@@ -4,6 +4,28 @@
 <a class="back" href="/admin/channels">← {{.T "nav.channels"}}</a>
 <div class="head"><h1>{{if $new}}{{.T "channels.new"}}{{else}}<span class="chan{{with $c.Color}} s{{slice . 1}}{{end}}">{{$c.Name}}</span>{{end}}</h1></div>
 <div class="cols wide-left">
+{{if index .Data "System"}}
+<section class="card">
+  <h2>{{.T "channels.service"}}</h2>
+  <p class="muted small">{{.T "channels.service_hint"}}</p>
+  {{if and (not $c.Users) (not (index .Data "Groups"))}}<div class="banner warn small">{{.T "channels.service_nobody"}}</div>{{end}}
+  <form method="post" action="/admin/channels/{{$c.ID}}" autocomplete="off">
+    <fieldset class="plain"{{if not .IsAdmin}} disabled{{end}}>
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <fieldset class="palette"><legend>{{.T "channels.color"}}</legend>
+      <label class="swatch-choice" title="{{.T "channels.no_color"}}"><input type="radio" name="color" value=""{{if not $c.Color}} checked{{end}}><span class="swatch none"></span></label>
+      {{range palette}}<label class="swatch-choice" title="{{.}}"><input type="radio" name="color" value="{{.}}"{{if eq . $c.Color}} checked{{end}}><span class="swatch s{{slice . 1}}"></span></label>{{end}}
+      <span class="hint">{{.T "channels.color_hint"}}</span>{{.Err "color"}}
+    </fieldset>
+    <label class="check"><input type="checkbox" name="enabled" value="1"{{if $c.Enabled}} checked{{end}}> {{.T "channels.enabled"}}</label>
+    {{if .IsAdmin}}<div class="actions"><button class="primary">{{.T "action.save"}}</button> <a class="button" href="/admin/settings?s=service">{{.T "channels.service_settings"}}</a></div>{{end}}
+    </fieldset>
+  </form>
+  <h3>{{.T "channels.service_groups"}}</h3>
+  {{with index .Data "Groups"}}<p>{{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}</p>{{else}}<p class="muted">—</p>{{end}}
+  <p class="muted small">{{.T "channels.service_groups_hint"}}</p>
+</section>
+{{else}}
 <section class="card">
   <h2>{{.T "channels.rule"}}</h2>
   <p class="muted small">{{.T "channels.rule_hint"}}</p>
@@ -42,6 +64,7 @@
   </form>
   {{end}}
 </section>
+{{end}}
 {{if not $new}}
 <section class="card" id="users">
   <h2>{{.T "channels.assigned"}}</h2>

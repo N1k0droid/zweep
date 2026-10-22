@@ -188,7 +188,7 @@ func (s *Store) SaveUserGroup(ctx context.Context, g UserGroup, by string) (stri
 		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO zw_usergroup_channel (group_id, channel_id)
-			SELECT $1, id FROM zw_channel WHERE kind = 'custom' AND id = ANY($2::text[])`, g.ID, g.Channels)
+			SELECT $1, id FROM zw_channel WHERE kind IN ('custom', 'system') AND id = ANY($2::text[])`, g.ID, g.Channels)
 		return err
 	})
 	return g.ID, affected, err

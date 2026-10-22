@@ -7,7 +7,7 @@ zabbix_export:
     - uuid: 03d98223c18c479faeeb3de01f52156e
       template: 'Zweep Web by HTTP'
       name: 'Zweep Web by HTTP'
-      description: "Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, and the web clients as the Zweep server sees them (manual, chapters 10.1 and 13.9). Optional: link it only where the web client is used.\nSet the macros {$ZWEEP.WEB.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an action that does NOT use the Zweep media type."
+      description: "Monitors the web client plugin of Zweep (Zweep Web): that the plugin answers, its notifications toward the push services, and the web clients as the Zweep server sees them (manual, chapters 10.1 and 13.9). Optional: link it only where the web client is used.\nSet the macros {$ZWEEP.WEB.URL} and {$ZWEEP.METRICS.URL} on the host. Notify these triggers with an action that does NOT use the Zweep media type."
       groups:
         - name: Templates/Applications
       items:
@@ -105,6 +105,64 @@ zabbix_export:
           tags:
             - tag: component
               value: web
+        - uuid: 3a1edcff06684da0a62e1b01871dbe08
+          name: 'Web notifications accepted by the push services'
+          type: DEPENDENT
+          key: 'zweep.web.push.sent'
+          delay: '0'
+          description: 'Notifications the push services (Apple, Google, Mozilla, Microsoft) accepted from the plugin in its last minute.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_push_sent'
+                - function
+                - sum
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
+        - uuid: 2481aa55ac384db4a8ec099c56d35702
+          name: 'Web notifications not delivered to the push services'
+          type: DEPENDENT
+          key: 'zweep.web.push.failed'
+          delay: '0'
+          description: 'Notifications of the plugin that did not reach a push service in its last minute (no answer, errors 5xx, too many requests).'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_push_failed'
+                - function
+                - sum
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
+        - uuid: 9360f75826e34868a20d95ee4bffdb6b
+          name: 'Web notifications held by the sending limit'
+          type: DEPENDENT
+          key: 'zweep.web.push.held'
+          delay: '0'
+          value_type: FLOAT
+          description: 'Alarms the plugin kept out of the notifications in its last minute because of the sending limit (a storm of alarms). -1 without a recent report.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'zweep_web_push_held'
+                - value
+                - ''
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '-1'
+          master_item:
+            key: zweep.web.metrics
+          tags:
+            - tag: component
+              value: web
       tags:
         - tag: class
           value: application
@@ -141,6 +199,14 @@ zabbix_export:
       name: 'Zweep Web: no web client connected'
       priority: WARNING
       description: 'There are web clients and none is connected: the plugin does not reach Zweep (address, allow-list of the plugin, Zweep down).'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: c34e8fd2a39f4e47a8c341267d4b5523
+      expression: 'min(/Zweep Web by HTTP/zweep.web.push.failed,5m)>0 and max(/Zweep Web by HTTP/zweep.web.push.sent,5m)=0'
+      name: 'Zweep Web: push services not reachable'
+      priority: WARNING
+      description: 'For 5 minutes the plugin delivered no notification to the push services and some failed: check its outbound HTTPS (port 443) to the push services (manual 13.3).'
       tags:
         - tag: scope
           value: availability

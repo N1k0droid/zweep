@@ -60,14 +60,30 @@ your records of processing if they apply to you (see `docs/COMPLIANCE.md`).
 
 The plugin is in the same image as the server. With Docker Compose:
 
-1. Create its key (32 random bytes, it encrypts what the plugin stores):
-   `head -c 32 /dev/urandom | base64 > secrets/web.key`
+1. Create its key (32 random bytes, it encrypts what the plugin stores) and its data directory, both
+   owned by the user of the container (on Docker Desktop the `chown` is not needed):
+
+   ```bash
+   head -c 32 /dev/urandom > secrets/web.key && chmod 600 secrets/web.key
+   mkdir -p web-data && chown 65532:65532 web-data secrets/web.key
+   ```
+
+   Without the `chown` the plugin cannot write its data and does not start.
 2. In `.env` set at least `ZWEEP_WEB_PUBLIC_URL=https://web.example.com` and
    `ZWEEP_WEB_PLUGIN_IPS` (next section).
 3. Start it: `docker compose --profile web up -d`
 4. Point your reverse proxy for `web.example.com` to `127.0.0.1:8090`, and list the proxy in
    `ZWEEP_WEB_TRUSTED_PROXIES` so that the plugin sees the real address of the browsers. The proxy
-   terminates TLS: let it send `Strict-Transport-Security` as for your other sites.
+   terminates TLS: let it send `Strict-Transport-Security` as for your other sites. A proxy on
+   **another machine** (a NAS, an appliance) cannot reach `127.0.0.1` of the Docker host: publish the
+   plugin on the LAN address too, in `compose.override.yaml`, as for the dashboard (3.6):
+
+   ```yaml
+   services:
+     web:
+       ports:
+         - "192.168.10.25:8090:8090"   # the LAN address of the Docker host
+   ```
 
 | Variable (plugin) | Default | Meaning |
 |---|---|---|
@@ -249,6 +265,9 @@ The screens are those of the Android app (chapter 8).
 The number on the icon is the count of open alarms you have not read. On iPhone it changes when a
 notification arrives or when you open the app.
 
+**Settings → About → Credits and source code** shows the author, the license and the address of the
+source code (AGPL-3.0), as in the app.
+
 ## 13.9 What the dashboard shows
 
 - **Devices**: web clients carry the label *web client*. *Last seen* is when the **browser** last
@@ -261,12 +280,20 @@ notification arrives or when you open the app.
 - **Audit**: `device.enrolled` and `device.connected` with the address of the browser,
   `web.code.blocked`, `web.session.expired` (not opened for too long), `web.session.unbound` (not
   bound to the browser in time), `admin.web.repeats`, `admin.web.disabled`.
-- **Metrics**: `zweep_web_devices` by state, only while the web client is on.
+- **Metrics**: `zweep_web_devices` by state, only while the web client is on. Every minute the plugin
+  also reports how its notifications went: `zweep_web_push_sent` and `zweep_web_push_failed` by push
+  service (`apple`, `google`, `mozilla`, `microsoft`, `other`) and `zweep_web_push_held` (alarms kept out
+  of the notifications by the sending limit), for its last minute. Failed counts only what says the push
+  service cannot be reached (no answer, errors 5xx, too many requests), not a subscription gone.
+- **Service channel**: with the check *Web client plugin* on (Settings → Zweep channel), the operators
+  of the service channel get an alert when no web client is connected for 3 minutes, or when the
+  plugin cannot reach the push services (chapter 7.5).
 - **Monitoring from Zabbix**: **Download** offers, while the web client is on, a second optional
   template, **Zweep Web by HTTP** (`template_zweep_web.yaml`, also in the `zabbix/` directory). It
   asks the plugin whether it answers (`/healthz`) and reads the web clients by state from the metrics
-  of the server (chapter 10.1). The plugin has no metrics of its own: what it could not hand to a
-  push service is in its log and in **Deliveries**.
+  of the server (chapter 10.1), with the push metrics above: a trigger fires when the plugin could
+  deliver nothing to the push services in its last minute. The single notifications that failed are in
+  the log of the plugin and in **Deliveries**.
 
 ## 13.10 Turning it off
 

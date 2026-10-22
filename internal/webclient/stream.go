@@ -541,6 +541,7 @@ func (s *Service) notify(ctx context.Context, id string, sub *webpush.Subscripti
 	}
 	if !m.paid && !s.allowance(id, m.Sev, true) {
 		// A storm: this one goes into the list only, and a summary notification will say how many did
+		s.stats.hold()
 		return outcomeFiltered, "burst"
 	}
 	payload := s.payload(sub.Endpoint, m, open, tz)
@@ -552,6 +553,7 @@ func (s *Service) notify(ctx context.Context, id string, sub *webpush.Subscripti
 			// way to Disaster and High): into the list, and into the summary (a reminder is simply not sent)
 			if !m.paid {
 				s.lim.hold(id)
+				s.stats.hold()
 			}
 			return outcomeFiltered, "burst"
 		case turnEnded:

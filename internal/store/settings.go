@@ -51,6 +51,11 @@ type Settings struct {
 	PasswordUsesPerDev  int           // enrollments with the password for each device the user may have (0: no limit)
 	MaxPhones           int           // devices of the app per user, unless the user has its own value (0: no limit)
 	MaxWeb              int           // web clients per user, unless the user has its own value (0: no limit)
+	// Service channel: which problems of Zweep itself are sent to the operators assigned to it
+	ServiceBackup  bool // backups failed or too old
+	ServiceTLS     bool // certificate not renewed or about to expire
+	ServiceSources bool // Zabbix API unreachable, API token about to expire, webhooks refused
+	ServiceWeb     bool // web client plugin not connected or failing to reach the push services
 }
 
 // DefaultSettings are the default values
@@ -83,6 +88,10 @@ func DefaultSettings() Settings {
 		PasswordUsesPerDev:  3,
 		MaxPhones:           1,
 		MaxWeb:              1,
+		ServiceBackup:       true,
+		ServiceTLS:          true,
+		ServiceSources:      true,
+		ServiceWeb:          true,
 	}
 }
 
@@ -91,6 +100,13 @@ type settingSpec struct {
 	min, max time.Duration
 	get      func(*Settings) any
 	set      func(*Settings, json.RawMessage) error
+}
+
+func boolSetting(f func(*Settings) *bool) settingSpec {
+	return settingSpec{
+		get: func(s *Settings) any { return *f(s) },
+		set: func(s *Settings, raw json.RawMessage) error { return json.Unmarshal(raw, f(s)) },
+	}
 }
 
 func durationSetting(min, max time.Duration, f func(*Settings) *time.Duration) settingSpec {
@@ -237,6 +253,10 @@ var settingSpecs = map[string]settingSpec{
 			return json.Unmarshal(raw, &s.NotifyRepeats)
 		},
 	},
+	"service.backup":  boolSetting(func(s *Settings) *bool { return &s.ServiceBackup }),
+	"service.tls":     boolSetting(func(s *Settings) *bool { return &s.ServiceTLS }),
+	"service.sources": boolSetting(func(s *Settings) *bool { return &s.ServiceSources }),
+	"service.web":     boolSetting(func(s *Settings) *bool { return &s.ServiceWeb }),
 	"tracking.shown": {
 		get: func(s *Settings) any { return s.TrackShown },
 		set: func(s *Settings, raw json.RawMessage) error {

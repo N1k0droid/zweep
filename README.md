@@ -136,8 +136,10 @@ chown 65532:65532 backups secrets/master.key secrets/database-url   # the user o
 docker compose up -d
 ```
 
-⚠ Copy `secrets/master.key` to a safe place now, **away from the backups**: without it the backups
-cannot be restored.
+⚠ Copy `secrets/master.key` to a safe place now, **away from the backups**. It encrypts every secret
+Zweep stores (Zabbix API tokens, webhook secrets, two-step verification, certificate keys) and every
+backup: without it neither can be read, and whoever has both the key and a backup can read everything
+([chapter 3.2](docs/manual/03-installation.md#32-the-master-key)).
 
 Check the first start:
 
@@ -192,14 +194,17 @@ the activation QR code; plain HTTP is for labs only ([chapter 5](docs/manual/05-
 ### Upgrading
 
 ```bash
+cd /opt/zweep
 docker compose exec -T zweep zweep-server backup -out - > zweep-$(date +%F).zwbk   # or use the daily backup in ./backups
+git pull                      # compose.yaml and .env.example of the new version; .env and your override stay yours
+diff .env .env.example        # new settings of the version, if any (read the CHANGELOG)
+nano .env                     # ZWEEP_IMAGE=ghcr.io/n1k0droid/zweep:<new version>
 docker compose pull
 docker compose up -d
 ```
 
-Set the new version in `ZWEEP_IMAGE` (`.env`) first. The database is migrated at start; downgrades
-are not supported: restore the backup instead ([chapter 10](docs/manual/10-operations.md)). Phones are
-offered the new app by your server.
+The database is migrated at start; downgrades are not supported: restore the backup instead
+([chapter 10](docs/manual/10-operations.md)). Phones are offered the new app by your server.
 
 ## Local evaluation
 

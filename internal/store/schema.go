@@ -15,6 +15,7 @@ var migrations = []string{
 	schemaV7,
 	schemaV8,
 	schemaV9,
+	schemaV10,
 }
 
 // schemaV1 is the initial schema
@@ -399,4 +400,22 @@ CREATE TABLE IF NOT EXISTS zw_channel_web_repeat (
 INSERT INTO zw_channel_web_repeat (channel_id, repeats) VALUES ('sev_5', 3) ON CONFLICT DO NOTHING;
 -- Web client: this user's sessions must be bound to a key of the browser, even when the setting does not ask it of everyone
 ALTER TABLE zw_user ADD COLUMN IF NOT EXISTS web_require_bound BOOLEAN NOT NULL DEFAULT false;
+`
+
+// schemaV10: the service channel "zweep" (alerts about Zweep itself: backups, certificate, Zabbix
+// sources, web client plugin), sent only to the operators and groups assigned to it, and the service
+// alerts open now (one per key, so that a restart or another node does not send them again)
+const schemaV10 = `
+ALTER TABLE zw_channel DROP CONSTRAINT IF EXISTS zw_channel_kind_check;
+ALTER TABLE zw_channel ADD CONSTRAINT zw_channel_kind_check CHECK (kind IN ('severity', 'custom', 'system'));
+INSERT INTO zw_channel (id, kind, name, priority, color) VALUES ('zweep', 'system', 'Zweep', 0, '#0EA5E9')
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS zw_service_alert (
+	key        TEXT PRIMARY KEY,
+	sid        TEXT NOT NULL,
+	severity   SMALLINT NOT NULL,
+	title      TEXT NOT NULL,
+	opened_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `

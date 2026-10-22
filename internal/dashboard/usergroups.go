@@ -119,7 +119,7 @@ func (d *Dashboard) groupFormData(ctx context.Context, g *store.UserGroup, data 
 	}
 	var chans []chanChoice
 	for _, c := range channels {
-		if c.Kind == "custom" {
+		if c.Kind == "custom" || c.Kind == "system" {
 			chans = append(chans, chanChoice{ChannelRow: c, Checked: slices.Contains(g.Channels, c.ID)})
 		}
 	}

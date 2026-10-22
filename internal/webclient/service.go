@@ -87,6 +87,7 @@ type Service struct {
 	pushBurst, pushEvery, pushBurstD, pushEveryD atomic.Int64
 	pushRate                                     atomic.Int64 // requests a second to one push service (0: the default)
 	lim                                          *limits
+	stats                                        *pushStats // reported to Zweep every minute (report.go)
 	baseCtx                                      context.Context
 
 	limiter *ratelimit.Limiter
@@ -146,6 +147,14 @@ func New(cfg Config) (*Service, error) {
 			return webpush.Send(ctx, s.vapid, sub, payload, ttl, "")
 		}
 	}
+	// Every answer of a push service is counted for the report to Zweep
+	s.stats = newPushStats()
+	push := s.cfg.Push
+	s.cfg.Push = func(ctx context.Context, sub webpush.Subscription, payload []byte, ttl time.Duration) webpush.Result {
+		res := push(ctx, sub, payload, ttl)
+		s.stats.count(sub.Endpoint, res.Status)
+		return res
+	}
 	s.routes()
 	return s, nil
 }
@@ -159,10 +168,14 @@ func (s *Service) Run(ctx context.Context) {
 	defer t.Stop()
 	chores := time.NewTicker(s.cfg.HousekeepEvery)
 	defer chores.Stop()
+	reports := time.NewTicker(ReportEvery)
+	defer reports.Stop()
 	for {
 		select {
 		case <-chores.C:
 			s.housekeep(ctx)
+		case <-reports.C:
+			s.report(ctx)
 		case <-ctx.Done():
 			s.mu.Lock()
 			for _, stop := range s.conns {

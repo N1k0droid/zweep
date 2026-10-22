@@ -96,6 +96,16 @@ var (
 	WebDevices = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "zweep_web_devices", Help: "Devices of the web client plugin by state (only while the web client is on)",
 	}, []string{"state"})
+	// What the web client plugin reported for its last minute (no series without a recent report)
+	WebPushSent = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "zweep_web_push_sent", Help: "Notifications the push services accepted from the web client plugin in its last minute, by service",
+	}, []string{"service"})
+	WebPushFailed = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "zweep_web_push_failed", Help: "Notifications of the web client plugin not delivered to the push services in its last minute, by service",
+	}, []string{"service"})
+	WebPushHeld = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "zweep_web_push_held", Help: "Alarms the web client plugin kept out of the notifications by the sending limit in its last minute",
+	}, nil)
 	UsersWithOnlineDevice = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "zweep_users_with_online_device", Help: "Users with at least one online device",
 	})
@@ -182,7 +192,7 @@ func collectors() []prometheus.Collector {
 		WebhookRequests, WebhookCollisions, WebhookDuplicateSource, WebhookUnknownSource, WebhookIPRejected, WebhookOutsideFilter, ChannelOverlap,
 		IngestDuration, IngestLastSuccess,
 		MessagesSent, Retries, Receipts, CumulativeReceipts, Gaps, Resyncs, UnconfirmedTotal, DeliveryLatency,
-		OutboxPending, Unconfirmed, OldestPendingAge, Devices, WebDevices, UsersWithOnlineDevice,
+		OutboxPending, Unconfirmed, OldestPendingAge, Devices, WebDevices, WebPushSent, WebPushFailed, WebPushHeld, UsersWithOnlineDevice,
 		WSConnections, WSConnects, WSDisconnects, MessagesStored, OldestMessageAge,
 		RecoveryWindow, RetentionLastRun, RetentionDeleted, AuthFailures, DBErrors,
 		ZbxPollLastSuccess, ZbxPollDuration, ZbxAPIErrors, ProjectionProblems, ProjectionStale, ZbxVersionInfo, ZbxTokenExpiry,

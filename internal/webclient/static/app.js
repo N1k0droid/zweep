@@ -160,6 +160,11 @@
   // Android has the Zweep app, which keeps its own connection and does not depend on a push service:
   // the web client works there, but it is the second choice
   const APP_URL = 'https://github.com/N1k0droid/zweep/releases/latest';
+  // The source code of this Zweep (AGPL-3.0, section 13) and its author: a fork that changes the code
+  // puts the address of its own source here
+  const SOURCE_URL = 'https://github.com/N1k0droid/zweep';
+  const AUTHOR_NAME = 'Nicola Carmelo Gurgone';
+  const AUTHOR_URL = 'https://github.com/N1k0droid';
   // androidChoice shows the notice alone, under the logo; the activation comes after the choice
   function androidChoice(next) {
     const points = [
@@ -959,8 +964,36 @@
               T('In Edge or Chrome: the install icon at the right of the address bar, or the menu → Apps → Install.', 'In Edge o Chrome: l\'icona di installazione a destra della barra degli indirizzi, oppure il menu → App → Installa.'))));
     }
     nodes.push(h('h3', { class: 'section' }, T('About', 'Informazioni')), h('div', { class: 'box' }, h('p', { class: 'muted small' }, 'Zweep Web · ' + (st.version || '')),
-      h('p', { class: 'muted small' }, st.bound ? T('Session bound to this browser.', 'Sessione legata a questo browser.') : T('Session not bound to this browser: it was activated before this protection existed. Log out and activate again to bind it.', 'Sessione non legata a questo browser: è stata attivata prima che esistesse questa protezione. Fai Logout e riattiva per legarla.'))));
+      h('p', { class: 'muted small' }, st.bound ? T('Session bound to this browser.', 'Sessione legata a questo browser.') : T('Session not bound to this browser: it was activated before this protection existed. Log out and activate again to bind it.', 'Sessione non legata a questo browser: è stata attivata prima che esistesse questa protezione. Fai Logout e riattiva per legarla.'))),
+      h('div', { class: 'actions centered after-box' }, h('button', { class: 'text', onclick: () => aboutSheet(st) }, T('Credits and source code', 'Crediti e codice sorgente'))));
     frame(st, T('Settings', 'Impostazioni'), {}, h('div', { class: 'settings' }, nodes));
+  }
+
+  // aboutSheet: the same information as About in the Android app (author, license and source, components,
+  // trademark)
+  function aboutSheet(st) {
+    const link = (url, text) => h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, text || url);
+    const part = (title, ...kids) => [h('h3', { class: 'section' }, title), ...kids];
+    const close = dialog(T('About', 'Informazioni'), [h('div', { class: 'scroll about' },
+      h('p', { class: 'strong' }, 'Zweep Web ' + (st.version || '')),
+      h('p', { class: 'muted' }, T('Your Zabbix alert radar', 'Il radar dei tuoi allarmi Zabbix')),
+      ...part(T('Author', 'Autore'),
+        h('p', { class: 'center' }, T('Zweep is designed and developed by:', 'Zweep è ideato e sviluppato da:')),
+        h('p', { class: 'center strong' }, AUTHOR_NAME),
+        h('p', { class: 'center' }, link(AUTHOR_URL, 'github.com/N1k0droid')),
+        h('p', { class: 'center muted small' }, T('Is Zweep useful to you? A ⭐ on GitHub and a follow help the project grow.',
+          'Zweep ti è utile? Una ⭐ su GitHub e un follow aiutano il progetto a crescere.'))),
+      ...part(T('License', 'Licenza'),
+        h('p', {}, T('Zweep is free software: GNU Affero General Public License v3.0 only. You can get, study and modify the source code.',
+          'Zweep è software libero: GNU Affero General Public License v3.0 (solo). Puoi ottenere, studiare e modificare il codice sorgente.')),
+        h('p', {}, T('Source code: ', 'Codice sorgente: '), link(SOURCE_URL))),
+      ...part(T('Open source components', 'Componenti open source'),
+        h('p', {}, T('This page uses no external libraries. The server and the web client plugin: ', 'Questa pagina non usa librerie esterne. Il server e il plugin del client web: '),
+          link(SOURCE_URL + '/blob/main/THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md'))),
+      ...part(T('Trademarks', 'Marchi'),
+        h('p', { class: 'muted small' }, T('Zabbix is a trademark of Zabbix LLC. Zweep is an independent product, not affiliated with or endorsed by Zabbix LLC.',
+          'Zabbix è un marchio di Zabbix LLC. Zweep è un prodotto indipendente, non affiliato né approvato da Zabbix LLC.'))))],
+    [textButton(T('Close', 'Chiudi'), () => close())], null, 'sheet');
   }
 
   // The Zweep logo of the strip of pull to refresh, as in the app: small, the red disc with its Z, the

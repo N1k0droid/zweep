@@ -74,8 +74,8 @@ server, for example in `/opt/zweep`:
 
 ```bash
 mkdir -p /opt/zweep && cd /opt/zweep
-curl -fsSLO https://raw.githubusercontent.com/N1k0droid/zweep/v1.1.0/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/N1k0droid/zweep/v1.1.0/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/N1k0droid/zweep/v1.2.0/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/N1k0droid/zweep/v1.2.0/.env.example -o .env
 
 mkdir -p secrets backups
 head -c 32 /dev/urandom > secrets/master.key
@@ -114,7 +114,7 @@ Edit `.env`:
 | `ZWEEP_LISTEN_PLAIN` | plain HTTP listener for Let's Encrypt HTTP-01 (3.3.2) |
 | `ZWEEP_BACKUP_HOUR`, `ZWEEP_BACKUP_KEEP` | daily backup in `./backups` |
 | `TZ` | time zone of the logs and of the backup hour |
-| `ZWEEP_IMAGE` | `ghcr.io/n1k0droid/zweep:1.1.0` or the mirror `docker.io/n1k0droid/zweep:1.1.0` |
+| `ZWEEP_IMAGE` | `ghcr.io/n1k0droid/zweep:1.2.0` or the mirror `docker.io/n1k0droid/zweep:1.2.0` |
 
 Every other option of chapter 4 can be added to the `environment` of the `zweep` service. Secrets are
 always files, never variables.
@@ -140,11 +140,11 @@ linux/arm64. To build your own:
 
 ```bash
 git clone https://github.com/N1k0droid/zweep.git && cd zweep
-cp /path/to/zweep-1.1.0.apk apk/        # the signed app offered to the phones (release asset)
-docker build --build-arg VERSION=1.1.0 -t zweep-server:1.1.0 .
+cp /path/to/zweep-1.2.0.apk apk/        # the signed app offered to the phones (release asset)
+docker build --build-arg VERSION=1.2.0 -t zweep-server:1.2.0 .
 ```
 
-Then set `ZWEEP_IMAGE=zweep-server:1.1.0` in `.env`. The build uses base images pinned by digest; the
+Then set `ZWEEP_IMAGE=zweep-server:1.2.0` in `.env`. The build uses base images pinned by digest; the
 result has no shell and runs as non-root. `make docker` does the same, and `make sbom` writes a
 CycloneDX SBOM of the dependencies in `dist/`.
 
@@ -400,8 +400,11 @@ then `docker compose up -d`. Any other address gets *403 Forbidden*. Notes:
 Zweep migrates the database automatically at start. To upgrade:
 
 1. make a backup (`zweep-server backup`, chapter 10.4);
-2. replace the image or the binary;
-3. restart; watch the log for errors at start (a failed migration stops the server before it
+2. with Docker Compose from a clone of the repository: `git pull` (the `compose.yaml` and
+   `.env.example` of the new version; your `.env` and `compose.override.yaml` are not touched), then
+   compare `.env` with `.env.example` for new settings and set the new version in `ZWEEP_IMAGE`;
+   `docker compose pull`. Otherwise replace the image or the binary;
+3. restart (`docker compose up -d`); watch the log for errors at start (a failed migration stops the server before it
    listens, so nothing half-migrated is ever served).
 
 With several nodes, upgrade them one at a time: a newer node migrates the schema, older nodes keep

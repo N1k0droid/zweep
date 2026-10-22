@@ -91,6 +91,7 @@ func New(baseCtx context.Context, st *store.Store, hub *delivery.Hub, proj *proj
 	s.mux.HandleFunc("POST /v1/app/enroll", s.handleEnroll)
 	s.mux.HandleFunc("GET /v1/app/web/status", s.handleWebStatus)
 	s.mux.HandleFunc("POST /v1/app/web/event", s.device(s.handleWebEvent, ""))
+	s.mux.HandleFunc("POST /v1/app/web/report", s.device(s.handleWebReport, ""))
 	s.mux.HandleFunc("POST /v1/app/token/rotate", s.device(s.handleRotate, ""))
 	s.mux.HandleFunc("POST /v1/app/logout", s.device(s.handleLogout, ""))
 	s.mux.HandleFunc("POST /v1/app/test", s.device(s.handleTestAlarm, store.ScopeStatus))

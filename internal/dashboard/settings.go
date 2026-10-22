@@ -36,7 +36,7 @@ type settingUnit struct {
 
 // settingSections are the entries of the menu of the settings page, in order; "danger" has no settings
 // of its own (the operations that cannot be undone) and is offered to administrators only
-var settingSections = []string{"notifications", "zabbix", "retention", "access", "web", "danger"}
+var settingSections = []string{"notifications", "zabbix", "retention", "access", "web", "service", "danger"}
 
 var settingUnits = []struct{ key, unit, section string }{
 	{"notifications.repeats", "mode", "notifications"},
@@ -71,6 +71,10 @@ var settingUnits = []struct{ key, unit, section string }{
 	{"web.push_burst_disaster", "count", "web"},
 	{"web.push_interval_disaster", "seconds", "web"},
 	{"web.push_rate", "count", "web"},
+	{"service.backup", "bool", "service"},
+	{"service.tls", "bool", "service"},
+	{"service.sources", "bool", "service"},
+	{"service.web", "bool", "service"},
 }
 
 // settingsURL is the page of the section a setting belongs to

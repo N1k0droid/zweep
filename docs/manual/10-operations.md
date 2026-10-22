@@ -3,7 +3,8 @@
 ## 10.1 Monitoring Zweep
 
 Zweep is part of your alarm chain, so it must be monitored — **by a path that does not go through
-Zweep**.
+Zweep**. The service channel (7.5) adds alerts on the phones about backups, certificate, Zabbix sources and
+the web client plugin, but it cannot report a Zweep that is down: keep the monitoring below.
 
 ### Health endpoints
 

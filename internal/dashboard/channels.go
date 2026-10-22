@@ -39,16 +39,19 @@ func (d *Dashboard) channels(w http.ResponseWriter, r *http.Request) {
 		d.unavailable(w, r, err)
 		return
 	}
-	var sev, custom []store.ChannelRow
+	var sev, custom, system []store.ChannelRow
 	for _, c := range all {
-		if c.Kind == "severity" {
+		switch c.Kind {
+		case "severity":
 			sev = append(sev, c)
-		} else {
+		case "system":
+			system = append(system, c)
+		default:
 			custom = append(custom, c)
 		}
 	}
 	slices.SortFunc(sev, func(a, b store.ChannelRow) int { return strings.Compare(b.ID, a.ID) }) // Disaster first
-	data := map[string]any{"Severity": sev, "Custom": custom}
+	data := map[string]any{"Severity": sev, "Custom": custom, "Service": system}
 	// Only while the web client is on: off, nothing of it shows
 	if st := d.Hub.Settings(); st.WebClient {
 		reps, err := d.Store.WebRepeats(r.Context())
@@ -63,7 +66,7 @@ func (d *Dashboard) channels(w http.ResponseWriter, r *http.Request) {
 			Minutes  int64 // 0: the general interval
 		}
 		var rows []row
-		for _, c := range append(append([]store.ChannelRow{}, sev...), custom...) {
+		for _, c := range append(append(append([]store.ChannelRow{}, sev...), system...), custom...) {
 			rows = append(rows, row{ID: c.ID, Name: c.Name, Severity: c.Kind == "severity", Repeats: reps[c.ID].Repeats, Minutes: reps[c.ID].EveryS / 60})
 		}
 		data["WebRepeat"] = map[string]any{"Rows": rows, "Minutes": int64(st.WebRepeatEvery.Minutes())}
@@ -282,13 +285,29 @@ func (d *Dashboard) renderChannel(w http.ResponseWriter, r *http.Request, status
 		d.unavailable(w, r, err)
 		return
 	}
-	i := slices.IndexFunc(all, func(c store.ChannelRow) bool { return c.ID == r.PathValue("id") && c.Kind == "custom" })
+	i := slices.IndexFunc(all, func(c store.ChannelRow) bool {
+		return c.ID == r.PathValue("id") && (c.Kind == "custom" || c.Kind == "system")
+	})
 	if i < 0 {
 		d.render(w, r, http.StatusNotFound, "error", map[string]any{"Message": "err.not_found"})
 		return
 	}
 	data := map[string]any{}
-	if err := d.channelFormData(ctx, all[i], data); err != nil {
+	if all[i].Kind == "system" {
+		// The service channel: no rule (its alerts come from Zweep); the groups that have it, read only
+		groups, err := d.Store.UserGroups(ctx)
+		if err != nil {
+			d.unavailable(w, r, err)
+			return
+		}
+		var names []string
+		for _, g := range groups {
+			if slices.Contains(g.Channels, all[i].ID) {
+				names = append(names, g.Name)
+			}
+		}
+		data["C"], data["System"], data["Groups"] = all[i], true, names
+	} else if err := d.channelFormData(ctx, all[i], data); err != nil {
 		d.unavailable(w, r, err)
 		return
 	}
@@ -317,6 +336,16 @@ func (d *Dashboard) renderChannel(w http.ResponseWriter, r *http.Request, status
 }
 
 func (d *Dashboard) channelUpdate(w http.ResponseWriter, r *http.Request) {
+	if id := r.PathValue("id"); id == store.ServiceChannel {
+		// The service channel: on/off and color only
+		c := store.ChannelRow{ID: id, Enabled: r.PostFormValue("enabled") == "1", Color: r.PostFormValue("color")}
+		if res := d.call(r, "PUT", "/v1/admin/channels/"+url.PathEscape(id), c); !res.OK() {
+			d.renderChannel(w, r, res.Status, res.errorData())
+			return
+		}
+		http.Redirect(w, r, channelURL(id)+"?done=saved", http.StatusSeeOther)
+		return
+	}
 	c, err := channelFromForm(r)
 	if err != nil {
 		d.render(w, r, http.StatusBadRequest, "error", map[string]any{"Message": "err.form"})

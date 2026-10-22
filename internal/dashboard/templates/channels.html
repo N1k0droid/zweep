@@ -19,6 +19,29 @@
   </tbody>
 </table>
 
+{{with index .Data "Service"}}
+<div class="head section" id="service">
+  <h2>{{$.T "channels.service"}}</h2>
+</div>
+<p class="muted small">{{$.T "channels.service_hint"}}</p>
+<table>
+  <thead><tr><th>{{$.T "field.name"}}</th><th class="num">{{$.T "col.operators"}}</th><th class="st">{{$.T "col.state"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr>
+    <td><span class="chan{{with .Color}} s{{slice . 1}}{{end}}">{{.Name}}</span></td>
+    <td class="num">{{len .Users}}</td>
+    <td class="st">{{if .Enabled}}<span class="pill ok">{{$.T "state.active"}}</span>{{else}}<span class="pill muted">{{$.T "state.disabled"}}</span>{{end}}</td>
+    <td class="row-actions">
+      <a class="button small" href="/admin/channels/{{.ID}}">{{if $.IsAdmin}}{{$.T "action.edit"}}{{else}}{{$.T "action.open"}}{{end}}</a>
+      <a class="button small" href="/admin/settings?s=service">{{$.T "channels.service_settings"}}</a>
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
 <div class="head section">
   <h2>{{.T "channels.title"}}</h2>
   {{if .IsAdmin}}<a class="button primary" href="/admin/channels/new">{{.T "channels.new"}}</a>{{end}}

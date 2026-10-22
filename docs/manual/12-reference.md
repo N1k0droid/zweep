@@ -76,7 +76,8 @@ Used by the app; listed for completeness: `POST /v1/app/enroll`, `GET /v1/app/co
 604800, adds the problems resolved in that window), `GET /v1/app/problems/history?period=<seconds>` (3600, 10800,
 43200, 86400, 604800 or 2592000: problems of the period read from Zabbix), `POST /v1/app/acks`,
 `POST /v1/app/alerts/close`, `POST /v1/app/test`, `POST /v1/app/token/rotate`, `POST /v1/app/logout`,
-`GET /v1/stream` (WebSocket). Without a token: `GET /download/zweep.apk` only when the setting
+`GET /v1/stream` (WebSocket). Web client plugin only (token of one of its web clients): `POST /v1/app/web/event`,
+`POST /v1/app/web/report`; without a token, from `ZWEEP_WEB_PLUGIN_IPS`: `GET /v1/app/web/status`. Without a token: `GET /download/zweep.apk` only when the setting
 `app.public_download` is on.
 
 ## 12.3 Webhook (Zabbix → Zweep)
@@ -189,6 +190,9 @@ process metrics are exported.
 | `zweep_outbox_pending` | gauge | reachability | deliveries not yet confirmed (`reachable`, `unreachable`) |
 | `zweep_oldest_pending_age_seconds` | gauge | | age of the oldest pending delivery |
 | `zweep_devices` | gauge | state | devices by state |
+| `zweep_web_devices` | gauge | state | devices of the web client plugin by state (only while the web client is on) |
+| `zweep_web_push_sent`, `zweep_web_push_failed` | gauge | service | notifications of the web client plugin accepted by the push services, or not delivered to them, in its last minute (only with a report of the last 5 minutes) |
+| `zweep_web_push_held` | gauge | | alarms the plugin kept out of the notifications by the sending limit in its last minute |
 | `zweep_users_with_online_device` | gauge | | operators with at least one device online |
 | `zweep_ws_connections` | gauge | | open streams on this node |
 | `zweep_ws_connects_total` | counter | | streams opened |
@@ -242,6 +246,7 @@ process metrics are exported.
 | `device.connected` | a device connected from a new address |
 | `web.code.blocked`, `web.session.expired`, `web.session.unbound`, `admin.web.repeats`, `admin.web.disabled` | web client: confirmation code blocked; client disconnected because not opened for too long, or not bound to its browser in time; repeats of the channels changed; web client turned off (its devices revoked) |
 | `announce.send`, `announce.resolve` | test messages and announcements |
+| `service.alert.open`, `service.alert.close` | alerts of the service channel (target: `backup`, `tls`, `source:<id>`, `web`) |
 | `tls.cert_obtained`, `tls.cert_failed` | certificates |
 | `backup.created`, `backup.failed`, `backup.restored`, `dashboard.backup_requested`, `dashboard.backup_download` | backups |
 | `dashboard.logs_view`, `dashboard.audit_export` | reading logs and exporting the audit |

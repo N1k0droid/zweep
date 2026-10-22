@@ -583,10 +583,13 @@ func TestWebPlugin_AckAuthorVouchedByTheServer(t *testing.T) {
 	var deviceID store.UUID
 	var userID string
 	require.Nil(t, e.s.store.Pool.QueryRow(ctx, `SELECT d.id, u.id FROM zw_device d JOIN zw_user u ON u.id = d.user_id WHERE u.username = 'anna'`).Scan(&deviceID, &userID))
+	// Written as Zabbix took it (confirmed): this source has no API, so the worker would refuse a request
+	// still to send, and a refused one never reaches Zabbix
 	reqID, err := store.NewUUIDv7()
 	require.Nil(t, err)
-	_, _, err = e.s.store.CreateAck(ctx, store.AckRequest{DeviceID: deviceID, RequestID: reqID, UserID: userID, Username: "anna", Source: "zbx-01", EventID: 1,
-		Text: "on it", Composed: "Zweep User: anna\non it", ActionMask: 6})
+	_, err = e.s.store.Pool.Exec(ctx, `
+		INSERT INTO zw_ack_request (id, device_id, request_id, user_id, username, source_id, zbx_eventid, text, composed, action_mask, state, finished_at)
+		VALUES (gen_random_uuid(), $1, $2, $3, 'anna', 'zbx-01', 1, 'on it', $4, 6, 'confirmed', now())`, deviceID, reqID, userID, "Zweep User: anna\non it")
 	require.Nil(t, err)
 	require.Equal(t, 200, zwclient.Webhook(nil, e.url, "zbx-01", secret, withMessage(1, "disk full", "Zweep User: anna\r\non it")).Code)
 	require.True(t, zwclient.WaitFor(5*time.Second, func() bool { return len(p.pushed()) == 2 }), p.bodies())

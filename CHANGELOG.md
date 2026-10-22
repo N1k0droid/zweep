@@ -2,6 +2,33 @@
 
 All notable changes to Zweep are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-10-22
+
+Server, web client and app 1.2.0 (the app has no changes: the same code as 1.1.0, its version follows
+the server). **Upgrading**: new image, `docker compose up -d` (the database migrates by itself); the
+phones are then offered the app 1.2.0. Nothing is sent on the new service channel until you assign it.
+
+- **Service channel "Zweep"**: alerts about Zweep itself on the phones and web clients of the operators
+  and user groups you assign to it (Channels → Zweep): a backup failed or late, the HTTPS certificate
+  not renewed or about to expire, a Zabbix whose API fails or whose token expires, webhooks refused, the
+  web client plugin stopped or unable to reach the push services. An alert opens when the problem
+  begins and closes by itself when it ends; it cannot be acknowledged. Each check can be turned off in
+  **Settings → Zweep channel**. It does not replace monitoring Zweep from Zabbix (manual 7.5, 10.1).
+- **Web client plugin metrics**: every minute the plugin reports to Zweep the notifications accepted by
+  each push service, those that did not reach it, and the alarms held by the sending limit
+  (`zweep_web_push_sent`, `zweep_web_push_failed`, `zweep_web_push_held`); the template "Zweep Web by
+  HTTP" gains the three items and a trigger.
+- Web client: **Settings → About → Credits and source code**, as in the app: author, license with the
+  address of the source code (AGPL-3.0), components, trademark.
+- Security: built with **Go 1.27.3** (fix of GO-2026-6809: `crypto/x509` did not distrust some compromised
+  intermediate certificates; Zweep verifies certificates toward the Zabbix API, ACME and the push
+  services).
+- Docs: installing the plugin creates its data directory with the right owner (without it the plugin
+  cannot write) and publishes it on the LAN when the reverse proxy is on another machine; upgrading
+  with `git pull` and a look at `.env.example`; what the master key protects; test messages cannot be
+  acknowledged, and where acknowledgements are found. `.gitignore` ignores the own files of an
+  installation (`backups/`, `web-data/`, `compose.override.yaml`).
+
 ## 1.1.0 — 2026-10-14
 
 Server, web client and app 1.1.0. **Upgrading**: the server first (new image, `docker compose up -d`;

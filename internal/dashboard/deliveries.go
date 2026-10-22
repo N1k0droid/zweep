@@ -144,7 +144,7 @@ func (d *Dashboard) deliveries(w http.ResponseWriter, r *http.Request) {
 	}
 	custom := map[string]store.ChannelRow{}
 	for _, c := range chans {
-		if c.Kind == "custom" {
+		if c.Kind == "custom" || c.Kind == "system" {
 			custom[c.ID] = c
 		}
 	}

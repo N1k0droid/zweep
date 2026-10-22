@@ -152,6 +152,39 @@ The app shows the channel name and color, and the severity when the event has on
 match, the lowest priority wins (counted in `zweep_channel_overlap_total`: consider making the rules
 exclusive).
 
+### The service channel "Zweep"
+
+Alerts about **Zweep itself**, on the phones (and web clients) of the operators you choose: a backup
+that failed, a certificate that cannot be renewed, a Zabbix whose API does not answer, the web client
+plugin stopped. An alert opens when the problem begins and **closes by itself** when it ends, as a Zabbix
+problem does; it cannot be acknowledged (there is no Zabbix event behind it), only silenced or closed.
+
+**Who receives them.** Nobody, until you choose: **Channels → Service channel → Zweep** (operators), or a
+**user group** that has the channel (page of the group, Channels). Only operators have devices: an
+administrator who wants these alerts uses an operator account of their own for the phone (7.1).
+
+**Which alerts.** **Settings → Zweep channel**, each on by default:
+
+| Check | Opens | Severity | Closes |
+|---|---|---|---|
+| Backups (only with a backup directory) | the last backup failed | High | a backup succeeds |
+| | no backup succeeded for 36 hours | Warning | a backup succeeds |
+| HTTPS certificate | the certificate cannot be obtained or renewed | High | the error ends |
+| | the certificate expires within 14 days | Warning | it is renewed |
+| Zabbix sources (one alert per source) | the Zabbix API fails for 5 minutes | High | the API answers again |
+| | the API token expires within 30 days | Warning | a new token is saved |
+| | webhooks refused (wrong secret or address not allowed) | Warning | an hour without refusals |
+| Web client plugin (only while the web client is on) | no web client connected for 3 minutes: the plugin is stopped or cannot reach Zweep | High | a web client connects |
+| | the plugin cannot reach the push services | Warning | its next minute without failures |
+
+The channel is shown in the app as a custom channel named **Zweep**: its color (Channels → Zweep), its
+sound and its reminders are chosen there, as for any channel; set its reminders on the phone. Alerts
+are checked every minute by one node; every opening and closing is in the **Audit**
+(`service.alert.open`, `service.alert.close`).
+
+⚠ The service channel does **not** replace monitoring Zweep from Zabbix (chapter 10.1): a Zweep that is
+down, or a database that does not answer, cannot send any alert.
+
 ## 7.6 Activating the app (enrollment)
 
 Three ways, from the most to the least suggested:
@@ -227,3 +260,5 @@ show it: in a severity channel, or in a custom channel (badge and color). Test m
 announcements go through the same delivery path as real alarms, so they are a real end-to-end test.
 
 The operator can also send a test alarm to their own phone from the app: **Settings → server → Send test alarm**.
+
+Test messages and announcements have no Zabbix event behind them, so they **cannot be acknowledged**: to try an acknowledgement, use a real Zabbix problem (a test trigger). An acknowledgement is found in **Audit** (`ack.accepted`), in the history of the alarm, and in Zabbix; **Deliveries** lists notifications, not acknowledgements.

@@ -11,6 +11,10 @@ test/zabbixjs/node_modules/
 android/.gradle/
 android/.kotlin/
 android/local.properties
+# An installation cloned from this repository: its own files stay out of git status
+backups/
+web-data/
+compose.override.yaml
 *.apk
 *.keystore
 *.jks

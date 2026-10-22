@@ -135,6 +135,43 @@ func (s *Service) handleWebEvent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleWebReport keeps what the web client plugin says every minute about its work toward the push
+// services: the service alerts and the metrics of Zweep use it. The plugin sends it with the token of one
+// of its web clients.
+func (s *Service) handleWebReport(w http.ResponseWriter, r *http.Request) {
+	dev := deviceOf(r)
+	if dev.Platform != store.PlatformWeb {
+		writeError(w, errNotFound)
+		return
+	}
+	var in store.PluginReport
+	if err := readJSON(r, &in, 4<<10); err != nil || !validCounts(in.Sent) || !validCounts(in.Failed) || in.Held < 0 || in.Window < 1 || in.Window > 3600 || len(in.Version) > 64 {
+		writeError(w, errBadJSON)
+		return
+	}
+	in.At = time.Now().UTC()
+	if err := s.st.SavePluginReport(r.Context(), in); err != nil {
+		storeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// validCounts: counts by push service, only the services the plugin knows
+func validCounts(m map[string]int) bool {
+	for k, n := range m {
+		switch k {
+		case "apple", "google", "mozilla", "microsoft", "other":
+		default:
+			return false
+		}
+		if n < 0 || n > 1_000_000 {
+			return false
+		}
+	}
+	return true
+}
+
 // handleWebStatus tells the web client plugin whether the administrator keeps the web client on, so
 // that it can show its users a notice instead of a login that would fail. Outside the allow-list the
 // endpoint does not exist.
@@ -402,7 +439,11 @@ func (s *Service) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	outChannels := make([]configChannel, 0, len(channels))
 	for _, c := range channels {
-		outChannels = append(outChannels, configChannel{ID: c.ID, Kind: c.Kind, Name: c.Name, Enabled: c.Enabled, Color: c.Color})
+		kind := c.Kind
+		if kind == "system" {
+			kind = "custom" // the app shows the service channel as a custom channel: its name, color and sound
+		}
+		outChannels = append(outChannels, configChannel{ID: c.ID, Kind: kind, Name: c.Name, Enabled: c.Enabled, Color: c.Color})
 	}
 	settings := s.hub.Settings()
 	serviceURLs := s.serviceURLs()

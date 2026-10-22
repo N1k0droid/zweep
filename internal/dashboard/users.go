@@ -338,7 +338,7 @@ func (d *Dashboard) channelData(ctx context.Context, u *store.User, data map[str
 	member, _ := data["MemberOf"].([]*store.UserGroup)
 	var out []channelChoice
 	for _, c := range all {
-		if c.Kind != "custom" {
+		if c.Kind != "custom" && c.Kind != "system" {
 			continue
 		}
 		var from []string

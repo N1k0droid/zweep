@@ -37,6 +37,7 @@ import (
 	"github.com/n1k0droid/zweep/internal/metrics"
 	"github.com/n1k0droid/zweep/internal/projection"
 	"github.com/n1k0droid/zweep/internal/ratelimit"
+	"github.com/n1k0droid/zweep/internal/service"
 	"github.com/n1k0droid/zweep/internal/store"
 	"github.com/n1k0droid/zweep/internal/tlsmgr"
 )
@@ -126,6 +127,14 @@ func New(cfg *config.Config) (*Server, error) {
 	dcfg.NodeID, dcfg.ServerID, dcfg.Keepalive = cfg.NodeID, serverID, cfg.Keepalive
 	hub := delivery.NewHub(st, dcfg, settings)
 	hub.Run(ctx)
+	// Alerts about Zweep itself, to the operators assigned to the service channel
+	svc := &service.Monitor{St: st, Settings: hub.Settings, TLS: tm.Status, BackupsEnabled: backups.Enabled,
+		Audit: func(ctx context.Context, e store.AuditEntry) {
+			if err := st.Audit(ctx, e); err != nil {
+				slog.Warn("Cannot write audit entry", "component", "service", "err", err)
+			}
+		}}
+	go svc.Run(ctx)
 	proj := projection.New(st, box, hub.Settings, projection.Hooks{Changed: hub.ProjectionChanged, Stale: hub.ProjectionStale})
 	go proj.Run(ctx)
 	acks := ack.NewWorker(st, proj, hub)

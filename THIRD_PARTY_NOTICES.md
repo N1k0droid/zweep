@@ -4,7 +4,7 @@ The Zweep server and web client binaries include the following open source modul
 
 | Module | Version | License |
 |---|---|---|
-| Go standard library and runtime | go1.27.2 | BSD-3-Clause |
+| Go standard library and runtime | go1.27.3 | BSD-3-Clause |
 | github.com/aws/aws-sdk-go-v2 | v1.39.1 | Apache-2.0 |
 | github.com/aws/aws-sdk-go-v2/config | v1.31.10 | Apache-2.0 |
 | github.com/aws/aws-sdk-go-v2/credentials | v1.18.14 | Apache-2.0 |
@@ -58,7 +58,7 @@ The Zweep server and web client binaries include the following open source modul
 | rsc.io/qr | v0.2.0 | BSD-3-Clause |
 | software.sslmate.com/src/go-pkcs12 | v0.7.3 | BSD-3-Clause |
 
-## Go standard library and runtime go1.27.2
+## Go standard library and runtime go1.27.3
 
 ```
 Copyright 2009 The Go Authors.

@@ -515,7 +515,15 @@ func (s *Service) adminUpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.ID = r.PathValue("id")
-	if !strings.HasPrefix(c.ID, "sev_") {
+	switch {
+	case strings.HasPrefix(c.ID, "sev_"):
+	case c.ID == store.ServiceChannel:
+		// The service channel: only on/off and its color
+		if !store.ValidChannelColor(c.Color) {
+			writeError(w, errorf(http.StatusBadRequest, 40030, "invalid_channel", "color must be one of the palette: "+strings.Join(store.ChannelPalette, " ")))
+			return
+		}
+	default:
 		if e := validChannel(c); e != nil {
 			writeError(w, e)
 			return

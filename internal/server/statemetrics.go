@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/n1k0droid/zweep/internal/backup"
 	"github.com/n1k0droid/zweep/internal/metrics"
+	"github.com/n1k0droid/zweep/internal/service"
 	"github.com/n1k0droid/zweep/internal/store"
 	"github.com/n1k0droid/zweep/internal/tlsmgr"
 )
@@ -40,6 +41,19 @@ func updateStateMetrics(ctx context.Context, tm *tlsmgr.Manager, backups *backup
 			metrics.TLSCertExpiry.WithLabelValues(s.Settings.Mode).Set(s.Info.NotAfter.Sub(now).Seconds())
 		}
 		metrics.TLSError.Set(boolGauge(s.LastError != ""))
+	}
+	// The last report of the web client plugin, while it is recent
+	metrics.WebPushSent.Reset()
+	metrics.WebPushFailed.Reset()
+	metrics.WebPushHeld.Reset()
+	if r, ok, err := st.LastPluginReport(ctx); err == nil && ok && now.Sub(r.At) <= service.PluginReportLife {
+		for svc, n := range r.Sent {
+			metrics.WebPushSent.WithLabelValues(svc).Set(float64(n))
+		}
+		for svc, n := range r.Failed {
+			metrics.WebPushFailed.WithLabelValues(svc).Set(float64(n))
+		}
+		metrics.WebPushHeld.WithLabelValues().Set(float64(r.Held))
 	}
 	metrics.BackupEnabled.Set(boolGauge(backups.Enabled()))
 	last, err := backup.LastStatus(ctx, st)

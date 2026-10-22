@@ -261,7 +261,7 @@ func TestRules_UpgradeFromPreviousSchema(t *testing.T) {
 	require.Equal(t, 200, e.setting("devices.max_phones", 1).Code)
 	require.Equal(t, 200, e.setting("password.uses_per_device", 3).Code)
 	require.Equal(t, 200, zwclient.Do(nil, "GET", e.url+"/v1/admin/users", nil, e.admin).Code) // the admin API answers on the upgraded database
-	require.Equal(t, 9, store.SchemaVersion())
+	require.Equal(t, 10, store.SchemaVersion())
 	devs, err := e.s.store.Devices(ctx, "mario")
 	require.Nil(t, err)
 	require.Len(t, devs, 2)

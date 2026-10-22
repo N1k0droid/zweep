@@ -166,6 +166,10 @@ label.check input { width: 20px; height: 20px; margin: 0; }
 .box p.gap { margin-top: 14px; }
 .strongmsg { font-weight: 600; }
 dialog .scroll { max-height: 45vh; overflow-y: auto; margin: 8px 0; }
+/* About: credits, license and source (as in the app) */
+dialog .scroll.about { max-height: 65vh; }
+.about h3.section { margin: 16px 0 4px; }
+.about p { margin: 4px 0; }
 dialog input[type=search] { margin-top: 0; }
 .dwrap { padding: 20px; }
 /* A list to search in: on a phone it fills the screen under the status strip, so the keyboard covers none of it */
@@ -213,3 +217,5 @@ button.erow.sel { background: var(--surface); }
 .hhead .st { margin-right: 6px; font-size: 10px; white-space: nowrap; }
 button.primary.red { background: var(--brand); border-color: var(--brand); }
 .actions.after-field { margin-top: 10px; }
+.actions.centered { justify-content: center; }
+.actions.after-box { margin-top: 12px; }
